@@ -2,17 +2,7 @@
 
 **An agent gym for incident response.** It's 11pm, a startup's service is down, and the on-call engineer is an AI agent. FireDrill drops a policy into a sandboxed, broken software project and asks it to diagnose and fix the incident — then scores not just *whether* it fixed things, but *how* it reasoned, how efficiently it worked, and whether it broke anything else along the way.
 
-Where [PuzzleChess](https://github.com/Rhomboic/PuzzleChess) is an **eval system** (a scorer over single-shot model outputs), FireDrill is a **gym**: the artifact is the *environment* — a reusable, reproducible, resettable world that **any** policy (our LLM agent, a human, or an RL training loop) can be dropped into and stepped through. The eval is just one consumer of it.
-
-## Why a gym, not an eval
-
-| | PuzzleChess (eval) | FireDrill (gym) |
-|---|---|---|
-| Core artifact | the scorer | the **environment** |
-| State | none (static FEN) | stateful filesystem, logs, side effects |
-| Interface | one API call in, score out | `reset` / `step` / `verify` / `snapshot` |
-| Reusable by an RL loop | no | **yes** — that's the point |
-| Reward | one composite | resolution · efficiency · blast radius · diagnosis |
+FireDrill is a **gym**: the artifact is the *environment* — a reusable, reproducible, resettable world that **any** policy (an LLM agent, a human, or an RL training loop) can be dropped into and stepped through. Each environment is a stateful software project with a real filesystem, logs, and side effects; the agent acts through tools, and the world responds. Scoring is one consumer of the environment, not the point of it.
 
 ## The environment interface
 
