@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+results/
+.DS_Store
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+*.tfplan
+node_modules/
