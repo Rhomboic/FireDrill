@@ -24,7 +24,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from gym import FireDrillEnv, Action, SUBMIT, anthropic_tools, openai_tools
+from gym import (FireDrillEnv, Action, SUBMIT,
+                 anthropic_tools, openai_tools, openai_responses_tools)
 
 # ── Model registry ──────────────────────────────────────────────────────────
 # Keys are the names we use everywhere (filenames, dashboard, ECS overrides);
@@ -42,6 +43,19 @@ OPENAI_MODELS = {
 }
 
 ALL_MODELS = list(ANTHROPIC_MODELS) + list(OPENAI_MODELS)
+
+# Flagships run at HIGH reasoning effort so the comparison is fair: Claude
+# defaults to high effort, while OpenAI must be told explicitly — without this,
+# we'd be comparing Opus reasoning-on against GPT reasoning-off. The small models
+# (haiku-4-5, gpt-4.1-mini) are non-reasoning baselines and stay as-is (Haiku 4.5
+# doesn't even accept the effort parameter).
+REASONING_MODELS = {"claude-opus-4-8", "gpt-5.5"}
+
+# Per-turn output budgets. Reasoning turns need headroom for thinking tokens;
+# 16k stays under the SDK's non-streaming timeout guard for Claude.
+CLAUDE_MAX_TOKENS = 4096
+CLAUDE_REASONING_MAX_TOKENS = 16000
+OPENAI_REASONING_MAX_COMPLETION_TOKENS = 32000
 
 
 def resolve_api_id(model: str) -> str:
@@ -165,22 +179,34 @@ def _retry(fn, *, tries: int = 5):
 
 # ── Anthropic driver ────────────────────────────────────────────────────────
 
-def _run_claude(env: FireDrillEnv, api_id: str, client, max_steps: int) -> EpisodeResult:
+def _run_claude(env: FireDrillEnv, api_id: str, client, max_steps: int,
+                reasoning: bool = False) -> EpisodeResult:
     tools = anthropic_tools()
     first_obs = env.reset()
     messages = [{"role": "user", "content": first_obs.text}]
     result = EpisodeResult(model=api_id, diagnosis=None, steps=0, stopped_reason="gave_up")
     start = time.time()
 
+    # Base request. High effort uses adaptive thinking + output_config.effort
+    # (Opus 4.8 rejects thinking.type="enabled"/budget_tokens). The system block
+    # stays cached either way.
+    base = dict(
+        model=api_id,
+        system=[{"type": "text", "text": SYSTEM_PROMPT,
+                 "cache_control": {"type": "ephemeral"}}],
+        tools=tools,
+    )
+    if reasoning:
+        base["max_tokens"] = CLAUDE_REASONING_MAX_TOKENS
+        base["thinking"] = {"type": "adaptive"}
+        base["output_config"] = {"effort": "high"}
+    else:
+        base["max_tokens"] = CLAUDE_MAX_TOKENS
+
     # Safety bound on turns: every acting step consumes one env step, plus slack
     # for thinking turns that produce no tool call.
     for _turn in range(max_steps * 3 + 5):
-        resp = _retry(lambda: client.messages.create(
-            model=api_id, max_tokens=4096,
-            system=[{"type": "text", "text": SYSTEM_PROMPT,
-                     "cache_control": {"type": "ephemeral"}}],
-            tools=tools, messages=messages,
-        ))
+        resp = _retry(lambda: client.messages.create(messages=messages, **base))
         # Anthropic reports cache reads/writes as SEPARATE fields (not included
         # in input_tokens), so we just add each bucket.
         u = resp.usage
@@ -223,9 +249,12 @@ def _run_claude(env: FireDrillEnv, api_id: str, client, max_steps: int) -> Episo
     return result
 
 
-# ── OpenAI driver ───────────────────────────────────────────────────────────
+# ── OpenAI driver — chat completions (non-reasoning models) ─────────────────
 
 def _run_openai(env: FireDrillEnv, api_id: str, client, max_steps: int) -> EpisodeResult:
+    """Chat-completions loop for non-reasoning OpenAI models (e.g. gpt-4.1-mini).
+    Reasoning models go through _run_openai_responses instead — chat completions
+    rejects reasoning_effort alongside function tools."""
     tools = openai_tools()
     first_obs = env.reset()
     messages = [
@@ -237,8 +266,7 @@ def _run_openai(env: FireDrillEnv, api_id: str, client, max_steps: int) -> Episo
 
     for _turn in range(max_steps * 3 + 5):
         resp = _retry(lambda: client.chat.completions.create(
-            model=api_id, messages=messages, tools=tools,
-        ))
+            model=api_id, messages=messages, tools=tools))
         if resp.usage:
             # OpenAI nests cached tokens INSIDE prompt_tokens, so subtract them
             # out into the cache-read bucket to match the Anthropic accounting.
@@ -281,6 +309,77 @@ def _run_openai(env: FireDrillEnv, api_id: str, client, max_steps: int) -> Episo
     return result
 
 
+# ── OpenAI driver — Responses API (reasoning models) ────────────────────────
+
+def _run_openai_responses(env: FireDrillEnv, api_id: str, client, max_steps: int,
+                          reasoning: bool = True) -> EpisodeResult:
+    """Responses-API loop for reasoning OpenAI models (gpt-5.5). Required because
+    chat completions rejects reasoning_effort + function tools. Uses
+    previous_response_id to carry conversation (and reasoning) state server-side,
+    so each turn only sends the new tool outputs."""
+    tools = openai_responses_tools()
+    first_obs = env.reset()
+    result = EpisodeResult(model=api_id, diagnosis=None, steps=0, stopped_reason="gave_up")
+    start = time.time()
+
+    base = dict(model=api_id, tools=tools,
+                max_output_tokens=OPENAI_REASONING_MAX_COMPLETION_TOKENS)
+    if reasoning:
+        base["reasoning"] = {"effort": "high"}
+
+    # First turn carries the system + task; later turns send only new items.
+    pending = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": first_obs.text},
+    ]
+    prev_id = None
+
+    for _turn in range(max_steps * 3 + 5):
+        kwargs = dict(base, input=pending)
+        if prev_id is not None:
+            kwargs["previous_response_id"] = prev_id
+        resp = _retry(lambda: client.responses.create(**kwargs))
+        prev_id = resp.id
+
+        u = getattr(resp, "usage", None)
+        if u:
+            details = getattr(u, "input_tokens_details", None)
+            cached = getattr(details, "cached_tokens", 0) or 0
+            result.input_tokens += u.input_tokens - cached
+            result.cache_read_tokens += cached
+            result.output_tokens += u.output_tokens  # includes reasoning tokens
+
+        calls = [it for it in resp.output if getattr(it, "type", None) == "function_call"]
+        if not calls:
+            pending = [{"role": "user", "content":
+                        "Use a tool to investigate or fix the issue, or call "
+                        "submit with your diagnosis when the incident is resolved."}]
+            continue
+
+        pending = []
+        done = False
+        for fc in calls:
+            if done:
+                output = "the episode has already ended"
+            else:
+                try:
+                    args = json.loads(fc.arguments or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                output, done = _apply_action(env, fc.name, args, result.transcript)
+            pending.append({"type": "function_call_output", "call_id": fc.call_id,
+                            "output": output[:MAX_OBS_IN_HISTORY]})
+
+        if done:
+            result.stopped_reason = "submit" if env.diagnosis is not None else "max_steps"
+            break
+
+    result.steps = env.steps
+    result.diagnosis = env.diagnosis
+    result.latency_ms = int((time.time() - start) * 1000)
+    return result
+
+
 # ── Public entry point ──────────────────────────────────────────────────────
 
 def run_episode(env: FireDrillEnv, model: str, max_steps: Optional[int] = None,
@@ -291,6 +390,7 @@ def run_episode(env: FireDrillEnv, model: str, max_steps: Optional[int] = None,
         raise ValueError(f"unknown model {model!r}; choose from {ALL_MODELS}")
     api_id = resolve_api_id(model)
     steps = max_steps if max_steps is not None else env.max_steps
+    reasoning = model in REASONING_MODELS  # flagships run at high effort
 
     try:
         if model in ANTHROPIC_MODELS:
@@ -298,12 +398,17 @@ def run_episode(env: FireDrillEnv, model: str, max_steps: Optional[int] = None,
                 import anthropic
                 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"],
                                              timeout=600.0)
-            res = _run_claude(env, api_id, client, steps)
+            res = _run_claude(env, api_id, client, steps, reasoning=reasoning)
         else:
             if client is None:
                 from openai import OpenAI
                 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=600.0)
-            res = _run_openai(env, api_id, client, steps)
+            # Reasoning models need the Responses API (chat completions rejects
+            # reasoning_effort + function tools); others use chat completions.
+            if reasoning:
+                res = _run_openai_responses(env, api_id, client, steps, reasoning=True)
+            else:
+                res = _run_openai(env, api_id, client, steps)
     except Exception as e:  # noqa: BLE001
         res = EpisodeResult(model=api_id, diagnosis=env.diagnosis, steps=env.steps,
                             stopped_reason="error", error=f"{type(e).__name__}: {e}")
