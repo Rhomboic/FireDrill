@@ -1,11 +1,35 @@
-.env
+# ── Secrets: NEVER commit real credentials ──────────────────────────────────
+# The root .env holds real API keys at runtime (template: .env.example).
+# This rule is rooted (/.env) so it does NOT swallow scenario fixture .env files
+# living under scenarios/**/filesystem/, which are intentional test data.
+/.env
+.env.local
+.env.*.local
+*.pem
+*.key
+id_rsa*
+.aws/
+# Terraform var files can carry secrets — commit *.tfvars.example instead.
+*.tfvars
+
+# Belt-and-suspenders: keep scenario fixtures tracked even if rules broaden.
+# Scenario fixtures must only ever contain CLEARLY FAKE secrets.
+!scenarios/**/.env
+!scenarios/**/.env.*
+
+# ── Python ──────────────────────────────────────────────────────────────────
 .venv/
+venv/
 __pycache__/
 *.pyc
+
+# ── Build / results / misc ──────────────────────────────────────────────────
 results/
+node_modules/
 .DS_Store
+
+# ── Terraform ───────────────────────────────────────────────────────────────
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
 *.tfplan
-node_modules/

@@ -1,0 +1,26 @@
+# gitleaks configuration for FireDrill.
+#
+# We scan the whole repo for real credentials on every push/PR. Scenarios are
+# deliberately broken software projects and some (e.g. hardcoded-secret) contain
+# FAKE secrets as fixtures; those, and the .env.example template, are allowlisted
+# below. Rule of thumb for scenario authors: only ever use obviously-fake values.
+
+title = "FireDrill gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake placeholder secrets: scenario fixtures and the env template"
+paths = [
+  '''\.env\.example$''',
+  '''\.gitleaks\.toml$''',
+  '''scenarios/.*''',
+]
+regexes = [
+  # Obvious test/example markers — never a real secret.
+  '''(?i)sk_test_[A-Za-z0-9]*example[A-Za-z0-9]*''',
+  '''(?i)example[_-]?key''',
+  '''sk-ant-\.\.\.''',
+  '''sk-\.\.\.''',
+]
