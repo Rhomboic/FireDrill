@@ -53,6 +53,28 @@ terraform/      ECS-on-EC2 + autoscaling, ECR, S3, secrets, dashboard infra
 dashboard/      static results dashboard (firedrill.adamissah.com)
 ```
 
+## Run a job locally
+
+No Docker or AWS needed — one `(scenario × model)` job from your shell:
+
+```bash
+pip install -r requirements.txt
+cp .env.example .env          # add your ANTHROPIC_API_KEY / OPENAI_API_KEY
+python3 runner/run_job.py --scenario 01-payments-service-down --model claude-opus-4-8
+```
+
+The runner resets the env, drives it with the model, verifies the fix, judges the
+diagnosis, scores all four dimensions, and writes the results payload to
+`results/<model>/<scenario>.json` (including a unified diff of what the agent
+changed). Exits non-zero if the incident wasn't resolved.
+
+Models: `claude-opus-4-8`, `claude-haiku-4-5`, `gpt-5.5`, `gpt-4.1-mini`. The
+core gym is dependency-free; the smoke tests run with no API keys:
+
+```bash
+for t in gym agent eval runner; do python3 tests/smoke_$t.py; done
+```
+
 ## Infrastructure
 
 Each job is a self-contained container — one `(scenario × model)` episode that resets the env, runs the policy, scores all four dimensions, and writes a self-describing result to S3. Jobs are spawned across an **EC2 Auto Scaling Group** via an ECS managed-scaling capacity provider: ECS places containers on instances and scales the fleet out when at capacity, in when idle. Results render at **firedrill.adamissah.com**.
