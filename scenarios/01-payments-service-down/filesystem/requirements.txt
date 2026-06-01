@@ -1,0 +1,2 @@
+# Payments service has no third-party runtime dependencies (yet).
+# Configuration is read from config/.env at startup.
