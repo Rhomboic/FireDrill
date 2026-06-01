@@ -44,15 +44,16 @@ OPENAI_MODELS = {
 
 ALL_MODELS = list(ANTHROPIC_MODELS) + list(OPENAI_MODELS)
 
-# Flagships run at HIGH effort on each model's native effort control — NOT an
-# extra reasoning mode. Opus 4.8 already defaults effort to "high" (we set it
-# explicitly for clarity; no extended thinking). gpt-5.5 is intrinsically a
-# reasoning model whose effort dial is reasoning_effort, which must be set
-# explicitly. The small models (haiku-4-5, gpt-4.1-mini) stay as baselines —
-# Haiku 4.5 doesn't even accept the effort parameter.
+# Flagships run REASONING at high effort, like-for-like. gpt-5.5 is intrinsically
+# a reasoning model (reasoning_effort=high); Opus only reasons when extended
+# thinking is on, so we enable adaptive thinking + effort=high to match it —
+# otherwise GPT would reason and Claude wouldn't, skewing the hard scenarios.
+# The small models (haiku-4-5, gpt-4.1-mini) are non-reasoning baselines (Haiku
+# 4.5 doesn't even accept the effort parameter).
 HIGH_EFFORT_MODELS = {"claude-opus-4-8", "gpt-5.5"}
 
 CLAUDE_MAX_TOKENS = 4096
+CLAUDE_REASONING_MAX_TOKENS = 16000  # headroom for thinking tokens per turn
 OPENAI_REASONING_MAX_COMPLETION_TOKENS = 32000
 
 
@@ -185,18 +186,23 @@ def _run_claude(env: FireDrillEnv, api_id: str, client, max_steps: int,
     result = EpisodeResult(model=api_id, diagnosis=None, steps=0, stopped_reason="gave_up")
     start = time.time()
 
-    # High effort = output_config.effort only (NO extended thinking). effort=high
-    # is already Opus 4.8's default; we set it explicitly to make the intent
-    # visible. The effort param errors on Haiku 4.5, so only Opus passes
-    # high_effort=True. System block stays cached.
+    # High effort = reasoning at high effort, to match gpt-5.5. Opus 4.8 reasons
+    # via adaptive thinking (thinking.type="enabled"/budget_tokens 400 on 4.8);
+    # output_config.effort=high sets the depth. Both error on Haiku 4.5, so only
+    # Opus passes high_effort=True. System block stays cached; thinking turns get
+    # extra max_tokens.
     base = dict(
-        model=api_id, max_tokens=CLAUDE_MAX_TOKENS,
+        model=api_id,
         system=[{"type": "text", "text": SYSTEM_PROMPT,
                  "cache_control": {"type": "ephemeral"}}],
         tools=tools,
     )
     if high_effort:
+        base["max_tokens"] = CLAUDE_REASONING_MAX_TOKENS
+        base["thinking"] = {"type": "adaptive"}
         base["output_config"] = {"effort": "high"}
+    else:
+        base["max_tokens"] = CLAUDE_MAX_TOKENS
 
     # Safety bound on turns: every acting step consumes one env step, plus slack
     # for turns that produce no tool call.
