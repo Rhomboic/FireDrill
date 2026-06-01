@@ -1,0 +1,18 @@
+{
+  "name": "payments-service-down",
+  "stack": "python",
+  "difficulty": "easy",
+  "description": "The payments service is down. Running `python main.py` crashes on boot instead of printing 'payments service ready'. Startup logs are in logs/. Get the service booting again.",
+  "bugs": [
+    "config/.env is missing the required STRIPE_API_KEY, so Settings() raises KeyError on boot",
+    "config/.env sets MAX_RETRIES=three, a non-integer that crashes int() parsing once the key issue is past"
+  ],
+  "success_condition": { "cmd": "python3 main.py", "exit": 0 },
+  "files_expected_to_change": ["config/.env"],
+  "regression_check": null,
+  "correct_diagnosis": "The service failed to boot because config/.env was missing the required STRIPE_API_KEY and set MAX_RETRIES to a non-integer ('three'); providing a valid sk_ key and an integer retry count lets it start.",
+  "reference_fix": {
+    "description": "Repair config/.env: add a valid STRIPE_API_KEY and fix MAX_RETRIES.",
+    "cmd": "cat > config/.env <<'EOF'\n# Payments service configuration\nPORT=8080\nMAX_RETRIES=3\nSTRIPE_API_KEY=sk_test_51FireDrillExampleKeyDoNotUse\nENV=production\nEOF"
+  }
+}

@@ -1,0 +1,13 @@
+[2026-05-31 22:58:01] INFO  starting payments service...
+[2026-05-31 22:58:01] INFO  loading configuration from config/.env
+[2026-05-31 22:58:01] ERROR service failed to boot
+Traceback (most recent call last):
+  File "main.py", line 17, in <module>
+    sys.exit(main())
+  File "main.py", line 11, in main
+    settings = Settings()
+  File "app/config.py", line 34, in __init__
+    self.stripe_api_key = os.environ["STRIPE_API_KEY"]
+  File "<frozen os>", line 679, in __getitem__
+KeyError: 'STRIPE_API_KEY'
+[2026-05-31 22:58:01] FATAL on-call paged: payments down
