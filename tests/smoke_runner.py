@@ -60,8 +60,10 @@ def main() -> int:
 
     assert payload["scores"]["resolution"] == 1.0
     assert payload["scores"]["composite"] > 0
+    assert "cost" not in payload["scores"]          # cost is its own axis
     assert payload["diagnosis"]["score"] == 4
     assert payload["blast_radius"]["clean_fix"] is True
+    assert payload["cost"]["cost_usd"] > 0 and 0 < payload["cost"]["cost_score"] <= 1
 
     diffs = payload["fix"]["diffs"]
     assert "config/.env" in diffs

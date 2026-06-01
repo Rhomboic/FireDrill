@@ -122,8 +122,7 @@ def run_job(scenario: str, model: str, *, max_steps: Optional[int] = None,
         verdict = {"score": 0, "rationale": "judge disabled", "model": None}
     print(f"  diagnosis score: {verdict['score']}/5 — {verdict['rationale']}")
 
-    payload = score_episode(meta, reward, episode, verdict,
-                            step_budget=env.max_steps, diffs=diffs)
+    payload = score_episode(meta, reward, episode, verdict, diffs=diffs)
 
     # write locally
     out_path = REPO_ROOT / out_dir / model / f"{scenario}.json"
@@ -134,7 +133,10 @@ def run_job(scenario: str, model: str, *, max_steps: Optional[int] = None,
     except ValueError:
         shown = out_path
     print(f"  wrote {shown}")
-    print(f"  composite={payload['scores']['composite']}  scores={payload['scores']}")
+    c = payload["cost"]
+    print(f"  quality={payload['scores']}")
+    print(f"  cost=${c['cost_usd']:.4f} ({c['total_tokens']} tok, score {c['cost_score']}) "
+          f"| steps={payload['efficiency']['steps']}")
 
     if s3 or os.environ.get("S3_BUCKET"):
         upload_to_s3(out_path, model, scenario)

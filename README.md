@@ -17,11 +17,11 @@ env.snapshot() / env.restore() # reproducible rollouts — one container, many e
 
 - **Action space** — five tools: `read_file`, `write_file`, `list_directory`, `read_logs`, `run_command`.
 - **Observation space** — file contents, directory listings, logs, and command stdout/stderr/exit codes.
-- **Reward** — four dimensions, queryable mid-episode:
+- **Reward** — quality dimensions (queryable mid-episode), kept separate so a consumer can reweight them; the **composite is quality only**:
   - **Resolution** — does the previously-broken thing work now? (objective verifier)
-  - **Efficiency** — how many steps did it take?
   - **Blast radius** — did it touch/break anything outside the expected fix?
   - **Diagnosis quality** — an LLM-as-judge scores the agent's root-cause explanation 1–5.
+- **Cost** — a separate first-class axis, *not* folded into the composite: cache-aware token usage priced to **dollars**, plus a saturating `k/(k+cost)` score (no upper bound needed). Quality answers "did it do the job well"; cost answers "what did that cost" — the cost-vs-capability tradeoff is the thing you actually compare. Steps and latency are reported as stats.
 
 ## Scenarios
 
