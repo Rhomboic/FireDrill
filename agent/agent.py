@@ -44,17 +44,15 @@ OPENAI_MODELS = {
 
 ALL_MODELS = list(ANTHROPIC_MODELS) + list(OPENAI_MODELS)
 
-# Flagships run at HIGH reasoning effort so the comparison is fair: Claude
-# defaults to high effort, while OpenAI must be told explicitly — without this,
-# we'd be comparing Opus reasoning-on against GPT reasoning-off. The small models
-# (haiku-4-5, gpt-4.1-mini) are non-reasoning baselines and stay as-is (Haiku 4.5
-# doesn't even accept the effort parameter).
-REASONING_MODELS = {"claude-opus-4-8", "gpt-5.5"}
+# Flagships run at HIGH effort on each model's native effort control — NOT an
+# extra reasoning mode. Opus 4.8 already defaults effort to "high" (we set it
+# explicitly for clarity; no extended thinking). gpt-5.5 is intrinsically a
+# reasoning model whose effort dial is reasoning_effort, which must be set
+# explicitly. The small models (haiku-4-5, gpt-4.1-mini) stay as baselines —
+# Haiku 4.5 doesn't even accept the effort parameter.
+HIGH_EFFORT_MODELS = {"claude-opus-4-8", "gpt-5.5"}
 
-# Per-turn output budgets. Reasoning turns need headroom for thinking tokens;
-# 16k stays under the SDK's non-streaming timeout guard for Claude.
 CLAUDE_MAX_TOKENS = 4096
-CLAUDE_REASONING_MAX_TOKENS = 16000
 OPENAI_REASONING_MAX_COMPLETION_TOKENS = 32000
 
 
@@ -180,31 +178,28 @@ def _retry(fn, *, tries: int = 5):
 # ── Anthropic driver ────────────────────────────────────────────────────────
 
 def _run_claude(env: FireDrillEnv, api_id: str, client, max_steps: int,
-                reasoning: bool = False) -> EpisodeResult:
+                high_effort: bool = False) -> EpisodeResult:
     tools = anthropic_tools()
     first_obs = env.reset()
     messages = [{"role": "user", "content": first_obs.text}]
     result = EpisodeResult(model=api_id, diagnosis=None, steps=0, stopped_reason="gave_up")
     start = time.time()
 
-    # Base request. High effort uses adaptive thinking + output_config.effort
-    # (Opus 4.8 rejects thinking.type="enabled"/budget_tokens). The system block
-    # stays cached either way.
+    # High effort = output_config.effort only (NO extended thinking). effort=high
+    # is already Opus 4.8's default; we set it explicitly to make the intent
+    # visible. The effort param errors on Haiku 4.5, so only Opus passes
+    # high_effort=True. System block stays cached.
     base = dict(
-        model=api_id,
+        model=api_id, max_tokens=CLAUDE_MAX_TOKENS,
         system=[{"type": "text", "text": SYSTEM_PROMPT,
                  "cache_control": {"type": "ephemeral"}}],
         tools=tools,
     )
-    if reasoning:
-        base["max_tokens"] = CLAUDE_REASONING_MAX_TOKENS
-        base["thinking"] = {"type": "adaptive"}
+    if high_effort:
         base["output_config"] = {"effort": "high"}
-    else:
-        base["max_tokens"] = CLAUDE_MAX_TOKENS
 
     # Safety bound on turns: every acting step consumes one env step, plus slack
-    # for thinking turns that produce no tool call.
+    # for turns that produce no tool call.
     for _turn in range(max_steps * 3 + 5):
         resp = _retry(lambda: client.messages.create(messages=messages, **base))
         # Anthropic reports cache reads/writes as SEPARATE fields (not included
@@ -312,7 +307,7 @@ def _run_openai(env: FireDrillEnv, api_id: str, client, max_steps: int) -> Episo
 # ── OpenAI driver — Responses API (reasoning models) ────────────────────────
 
 def _run_openai_responses(env: FireDrillEnv, api_id: str, client, max_steps: int,
-                          reasoning: bool = True) -> EpisodeResult:
+                          high_effort: bool = True) -> EpisodeResult:
     """Responses-API loop for reasoning OpenAI models (gpt-5.5). Required because
     chat completions rejects reasoning_effort + function tools. Uses
     previous_response_id to carry conversation (and reasoning) state server-side,
@@ -324,7 +319,7 @@ def _run_openai_responses(env: FireDrillEnv, api_id: str, client, max_steps: int
 
     base = dict(model=api_id, tools=tools,
                 max_output_tokens=OPENAI_REASONING_MAX_COMPLETION_TOKENS)
-    if reasoning:
+    if high_effort:
         base["reasoning"] = {"effort": "high"}
 
     # First turn carries the system + task; later turns send only new items.
@@ -390,7 +385,7 @@ def run_episode(env: FireDrillEnv, model: str, max_steps: Optional[int] = None,
         raise ValueError(f"unknown model {model!r}; choose from {ALL_MODELS}")
     api_id = resolve_api_id(model)
     steps = max_steps if max_steps is not None else env.max_steps
-    reasoning = model in REASONING_MODELS  # flagships run at high effort
+    high_effort = model in HIGH_EFFORT_MODELS  # flagships run at high effort
 
     try:
         if model in ANTHROPIC_MODELS:
@@ -398,15 +393,16 @@ def run_episode(env: FireDrillEnv, model: str, max_steps: Optional[int] = None,
                 import anthropic
                 client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"],
                                              timeout=600.0)
-            res = _run_claude(env, api_id, client, steps, reasoning=reasoning)
+            res = _run_claude(env, api_id, client, steps, high_effort=high_effort)
         else:
             if client is None:
                 from openai import OpenAI
                 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=600.0)
-            # Reasoning models need the Responses API (chat completions rejects
-            # reasoning_effort + function tools); others use chat completions.
-            if reasoning:
-                res = _run_openai_responses(env, api_id, client, steps, reasoning=True)
+            # gpt-5.5 is a reasoning model: high effort = reasoning_effort=high,
+            # which needs the Responses API (chat completions rejects it with
+            # function tools). gpt-4.1-mini uses plain chat completions.
+            if high_effort:
+                res = _run_openai_responses(env, api_id, client, steps, high_effort=True)
             else:
                 res = _run_openai(env, api_id, client, steps)
     except Exception as e:  # noqa: BLE001

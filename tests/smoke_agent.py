@@ -107,11 +107,12 @@ def run_one(model: str, client) -> None:
 
 
 def main() -> int:
-    # Flagship Claude: adaptive thinking + high effort, via Messages API.
+    # Flagship Claude: high effort only (output_config.effort), NO extended
+    # thinking, via Messages API.
     ca = FakeAnthropic()
     run_one("claude-opus-4-8", ca)
-    assert ca.messages.last_kwargs["thinking"] == {"type": "adaptive"}
     assert ca.messages.last_kwargs["output_config"] == {"effort": "high"}
+    assert "thinking" not in ca.messages.last_kwargs
 
     # Flagship GPT: high reasoning effort, via the Responses API (chat completions
     # rejects reasoning_effort + tools).
