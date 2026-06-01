@@ -73,6 +73,16 @@ esc = env.step(Action("read_file", {"path": "../../../etc/passwd"}))
 print(f"[escape] ok={esc.observation.ok} text={esc.observation.text[:40]!r}")
 assert esc.observation.ok is False
 
+# generated artifacts (bytecode caches, build output) must NOT count as blast
+# radius — running the project byte-compiles modules, and that is not an edit.
+env.reset()
+env.step(Action("write_file", {"path": "main.py", "content": "import os\nprint('ok')\n"}))
+env.step(Action("write_file", {"path": "app/__pycache__/util.cpython-312.pyc", "content": "BYTECODE"}))
+env.step(Action("write_file", {"path": ".DS_Store", "content": "junk"}))
+r = env.verify()
+print(f"[artifacts] modified={r.files_modified} (only main.py expected)")
+assert r.files_modified == ["main.py"], r.files_modified
+
 snap = env.snapshot()
 env.step(Action("write_file", {"path": "main.py", "content": "broken"}))
 env.restore(snap)
