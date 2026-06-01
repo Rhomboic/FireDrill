@@ -78,10 +78,24 @@ class EpisodeResult:
     steps: int                         # tool calls that acted on the workspace
     stopped_reason: str                # "submit" | "max_steps" | "gave_up" | "error"
     transcript: list[dict] = field(default_factory=list)
+    # Token usage, normalised across providers into four billable buckets so the
+    # eval layer can price it. "input_tokens" is UNCACHED input only; cached
+    # reads/writes are tracked separately because they bill at different rates.
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
     latency_ms: int = 0
     error: Optional[str] = None
+
+    @property
+    def usage(self) -> dict[str, int]:
+        return {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "cache_read_tokens": self.cache_read_tokens,
+            "cache_write_tokens": self.cache_write_tokens,
+        }
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,8 +104,7 @@ class EpisodeResult:
             "steps": self.steps,
             "stopped_reason": self.stopped_reason,
             "transcript": self.transcript,
-            "input_tokens": self.input_tokens,
-            "output_tokens": self.output_tokens,
+            **self.usage,
             "latency_ms": self.latency_ms,
             "error": self.error,
         }
@@ -168,8 +181,13 @@ def _run_claude(env: FireDrillEnv, api_id: str, client, max_steps: int) -> Episo
                      "cache_control": {"type": "ephemeral"}}],
             tools=tools, messages=messages,
         ))
-        result.input_tokens += resp.usage.input_tokens
-        result.output_tokens += resp.usage.output_tokens
+        # Anthropic reports cache reads/writes as SEPARATE fields (not included
+        # in input_tokens), so we just add each bucket.
+        u = resp.usage
+        result.input_tokens += u.input_tokens
+        result.output_tokens += u.output_tokens
+        result.cache_read_tokens += getattr(u, "cache_read_input_tokens", 0) or 0
+        result.cache_write_tokens += getattr(u, "cache_creation_input_tokens", 0) or 0
 
         tool_uses = [b for b in resp.content if getattr(b, "type", None) == "tool_use"]
         messages.append({"role": "assistant", "content": resp.content})
@@ -222,7 +240,12 @@ def _run_openai(env: FireDrillEnv, api_id: str, client, max_steps: int) -> Episo
             model=api_id, messages=messages, tools=tools,
         ))
         if resp.usage:
-            result.input_tokens += resp.usage.prompt_tokens
+            # OpenAI nests cached tokens INSIDE prompt_tokens, so subtract them
+            # out into the cache-read bucket to match the Anthropic accounting.
+            details = getattr(resp.usage, "prompt_tokens_details", None)
+            cached = getattr(details, "cached_tokens", 0) or 0
+            result.input_tokens += resp.usage.prompt_tokens - cached
+            result.cache_read_tokens += cached
             result.output_tokens += resp.usage.completion_tokens
 
         msg = resp.choices[0].message

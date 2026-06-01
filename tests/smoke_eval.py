@@ -65,20 +65,31 @@ def main() -> int:
                                   META["description"], client=FakeJudge())
         assert verdict["score"] == 5, verdict
 
-        payload = score_episode(META, reward, episode, verdict, step_budget=env.max_steps)
+        payload = score_episode(META, reward, episode, verdict)
         env.close()
 
     s = payload["scores"]
-    print("scores:", s)
+    cost = payload["cost"]
+    print("quality scores:", s)
+    print("cost axis:", {k: cost[k] for k in ("total_tokens", "cost_usd", "cost_score", "priced")})
     print("diagnosis:", payload["diagnosis"]["score"], "-", payload["diagnosis"]["rationale"])
-    print("blast clean_fix:", payload["blast_radius"]["clean_fix"])
-    print("verification keys:", list(payload["verification"].keys()))
 
+    # composite is QUALITY ONLY: 0.6*res + 0.2*blast + 0.2*diag; cost is excluded
     assert s["resolution"] == 1.0
-    assert payload["blast_radius"]["clean_fix"] is True
     assert s["blast_radius"] == 1.0
     assert s["diagnosis"] == 1.0
-    assert 0.0 < s["composite"] <= 1.0
+    assert s["composite"] == 1.0, s["composite"]      # 0.6 + 0.2 + 0.2, no cost term
+    assert "efficiency" not in s and "cost" not in s  # cost stays out of the composite
+    assert payload["blast_radius"]["clean_fix"] is True
+
+    # cost is its own first-class axis
+    assert cost["priced"] is True
+    assert cost["cost_usd"] > 0
+    assert 0.0 < cost["cost_score"] <= 1.0
+    assert cost["total_tokens"] == sum(payload["cost"][k] for k in
+                                       ("input_tokens", "output_tokens",
+                                        "cache_read_tokens", "cache_write_tokens"))
+
     assert payload["diagnosis"]["agent"]
     assert payload["diagnosis"]["correct"] == META["correct_diagnosis"]
     assert "success_condition" in payload["verification"]
@@ -87,6 +98,7 @@ def main() -> int:
 
     agg = aggregate([payload])
     assert agg["resolution_rate"] == 1.0 and agg["count"] == 1
+    assert agg["total_cost_usd"] == cost["cost_usd"]
 
     # judge robustness (no network)
     assert score_diagnosis("", "anything")["score"] == 1           # empty -> 1, no call
