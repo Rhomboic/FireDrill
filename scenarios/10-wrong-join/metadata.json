@@ -1,0 +1,18 @@
+{
+  "name": "wrong-join",
+  "stack": "sql",
+  "difficulty": "medium",
+  "description": "The revenue report is missing customers — accounts that should be on it aren't showing up, and finance says the totals look short. Fix the report so it's correct.",
+  "bugs": [
+    "the report query uses an INNER JOIN between customers and orders, so customers with no orders this period are dropped from the report entirely instead of showing 0 revenue"
+  ],
+  "success_condition": { "cmd": "python3 tests/run_tests.py", "exit": 0 },
+  "protected_paths": ["tests"],
+  "files_expected_to_change": ["report.py"],
+  "regression_check": null,
+  "correct_diagnosis": "The report used an INNER JOIN from customers to orders, dropping customers with no orders; a LEFT JOIN (with COALESCE(SUM(amount), 0)) includes every customer and shows 0 for those with no orders.",
+  "reference_fix": {
+    "description": "Use a LEFT JOIN so every customer appears (0 revenue when they have no orders).",
+    "cmd": "cat > report.py <<'EOF'\n\"\"\"Revenue report: total revenue per customer for the period.\"\"\"\n\nimport sqlite3\nfrom pathlib import Path\n\nQUERY = \"\"\"\nSELECT c.name, COALESCE(SUM(o.amount), 0) AS revenue\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id\nGROUP BY c.id\nORDER BY c.name\n\"\"\"\n\n\ndef build_db() -> sqlite3.Connection:\n    conn = sqlite3.connect(\":memory:\")\n    conn.executescript(Path(\"data/seed.sql\").read_text())\n    return conn\n\n\ndef get_revenue_report(conn: sqlite3.Connection):\n    return [(name, round(revenue, 2)) for name, revenue in conn.execute(QUERY)]\n\n\ndef main() -> None:\n    for name, revenue in get_revenue_report(build_db()):\n        print(f\"{name}: {revenue:.2f}\")\n\n\nif __name__ == \"__main__\":\n    main()\nEOF"
+  }
+}
