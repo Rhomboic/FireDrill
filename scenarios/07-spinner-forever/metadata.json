@@ -1,0 +1,18 @@
+{
+  "name": "spinner-forever",
+  "stack": "web",
+  "difficulty": "medium",
+  "description": "On the customer dashboard, the list of projects never loads — there's just a 'Loading…' spinner that spins forever and an empty page. Customers can't see any of their projects. Fix it so the data shows up.",
+  "bugs": [
+    "app.js fetches from a stale hardcoded URL (http://localhost:3001/api/items) that nothing serves, so the request fails, the catch swallows it, the spinner never hides, and no items render; the data is actually served at ./data/items.json on the same origin"
+  ],
+  "success_condition": { "cmd": "playwright test", "exit": 0 },
+  "protected_paths": ["tests", "playwright.config.js"],
+  "files_expected_to_change": ["public/app.js"],
+  "regression_check": null,
+  "correct_diagnosis": "app.js fetched a stale dev API URL (http://localhost:3001/api/items) that nothing serves, so the request failed and the spinner never cleared; pointing the fetch at the data served on the same origin (./data/items.json) loads the projects.",
+  "reference_fix": {
+    "description": "Fetch the data from the path served on the same origin.",
+    "cmd": "node -e \"const fs=require('fs');const p='public/app.js';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('http://localhost:3001/api/items', './data/items.json'));\""
+  }
+}
