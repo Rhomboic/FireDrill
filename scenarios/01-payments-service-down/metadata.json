@@ -2,7 +2,7 @@
   "name": "payments-service-down",
   "stack": "python",
   "difficulty": "easy",
-  "description": "The payments service is down. Running `python main.py` crashes on boot instead of printing 'payments service ready'. Startup logs are in logs/. Get the service booting again.",
+  "description": "The payments service is down. It was healthy earlier today, but now it won't start — customers can't check out. Get it back online.",
   "bugs": [
     "config/.env is missing the required STRIPE_API_KEY, so Settings() raises KeyError on boot",
     "config/.env sets MAX_RETRIES=three, a non-integer that crashes int() parsing once the key issue is past"
