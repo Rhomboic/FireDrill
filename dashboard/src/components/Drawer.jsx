@@ -32,7 +32,7 @@ export default function Drawer({ job, onClose }) {
           ×
         </button>
         <h3>{job.scenario}</h3>
-        <div className="muted">
+        <div className="sub-line">
           {modelLabel(job._model)} · {job.stack} · {job.difficulty}
         </div>
 
