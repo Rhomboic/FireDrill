@@ -125,6 +125,28 @@ class EpisodeResult:
 
 # ── Shared helpers ──────────────────────────────────────────────────────────
 
+# Live trace of every tool call to stdout, so the container streams what the
+# agent is doing as it happens (visible in `docker logs` / CloudWatch) instead
+# of going silent until submit. Set FIREDRILL_QUIET=1 to suppress.
+_QUIET = os.environ.get("FIREDRILL_QUIET", "").strip().lower() in ("1", "true", "yes")
+
+
+def _log_tool(env: FireDrillEnv, name: str, args: dict, result) -> None:
+    if _QUIET:
+        return
+    ts = time.strftime("%H:%M:%S")
+    if name == SUBMIT:
+        print(f"[{ts}] submit     | diagnosis: {(env.diagnosis or '')[:140]}", flush=True)
+        return
+    obs = result.observation
+    status = (f"exit {obs.exit_code}" if obs.exit_code is not None
+              else ("ok" if obs.ok else "ERROR"))
+    detail = args.get("path") or args.get("command") or ""
+    flag = "  ⚠ blast" if result.reward.unexpected_files else ""
+    print(f"[{ts}] step {env.steps:2d}   | {name:<14} {str(detail)[:60]:<60} -> {status}{flag}",
+          flush=True)
+
+
 def _short(args: dict, limit: int = 300) -> dict:
     """Trim long arg values (e.g. full file contents) for the transcript."""
     out = {}
@@ -155,6 +177,7 @@ def _apply_action(env: FireDrillEnv, name: str, args: dict,
         entry["observation"] = obs_text
         entry["unexpected_files"] = result.reward.unexpected_files
     transcript.append(entry)
+    _log_tool(env, name, args, result)
     return obs_text, result.done
 
 
