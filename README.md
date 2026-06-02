@@ -75,6 +75,20 @@ core gym is dependency-free; the smoke tests run with no API keys:
 for t in gym agent eval runner; do python3 tests/smoke_$t.py; done
 ```
 
+## Run a job in a container
+
+The same entrypoint runs in Docker (this is the image that runs on ECS). One
+universal image bundles the gym + all scenarios; `SCENARIO` and `MODEL` are
+runtime env vars:
+
+```bash
+./orchestrator/run_local_docker.sh 03-off-by-one claude-opus-4-8
+# builds firedrill:latest, runs the job, writes results/<model>/<scenario>.json
+```
+
+Python + Node + SQLite scenarios run in this image; the React/Playwright UI
+scenarios use a separate image (WIP).
+
 ## Infrastructure
 
 Each job is a self-contained container — one `(scenario × model)` episode that resets the env, runs the policy, scores all four dimensions, and writes a self-describing result to S3. Jobs are spawned across an **EC2 Auto Scaling Group** via an ECS managed-scaling capacity provider: ECS places containers on instances and scales the fleet out when at capacity, in when idle. Results render at **firedrill.adamissah.com**.
