@@ -6,21 +6,25 @@ To compare it fairly across model tiers we price the four billable token buckets
 (uncached input, output, cache read, cache write) per model and sum to a dollar
 figure. Rates are USD per 1M tokens.
 
-These rates are APPROXIMATE and configurable — update them to the current public
-prices (or override PRICING) before quoting absolute dollars. gpt-5.5 in
-particular is a placeholder until its real pricing is set.
+Rates below are the published per-1M-token API prices for each model, sourced
+from the providers' pricing pages (fetched 2026-06; see per-row citations). If
+prices change, update them here or override PRICING.
 """
 
 from __future__ import annotations
 
 # USD per 1,000,000 tokens. Keys are FireDrill registry model names.
-# cache_write defaults to 1.25× input, cache_read to 0.1× input where a provider
-# offers prompt caching.
+# Anthropic charges cache writes separately (5-min: 1.25× input); OpenAI does
+# not bill cache writes, so cache_write is 0 for OpenAI (and our OpenAI usage
+# never reports cache-creation tokens anyway). cache_read is the cached/hit rate.
 PRICING: dict[str, dict[str, float]] = {
-    "claude-opus-4-8":  {"input": 15.0, "output": 75.0, "cache_read": 1.50, "cache_write": 18.75},
+    # Anthropic — https://platform.claude.com/docs/en/about-claude/pricing
+    "claude-opus-4-8":  {"input": 5.00, "output": 25.0, "cache_read": 0.50, "cache_write": 6.25},
     "claude-haiku-4-5": {"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_write": 1.25},
-    "gpt-5.5":          {"input": 10.0, "output": 30.0, "cache_read": 2.50, "cache_write": 10.0},
-    "gpt-4.1-mini":     {"input": 0.40, "output": 1.60, "cache_read": 0.10, "cache_write": 0.40},
+    # OpenAI — https://developers.openai.com/api/docs/pricing (gpt-5.5) and
+    #          https://developers.openai.com/api/docs/models/gpt-4.1-mini
+    "gpt-5.5":          {"input": 5.00, "output": 30.0, "cache_read": 0.50, "cache_write": 0.0},
+    "gpt-4.1-mini":     {"input": 0.40, "output": 1.60, "cache_read": 0.10, "cache_write": 0.0},
 }
 
 # Models we don't have a price for are scored with cost 0 and flagged, rather
