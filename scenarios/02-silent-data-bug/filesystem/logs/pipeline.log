@@ -1,0 +1,6 @@
+[2026-05-31 06:00:02] INFO  revenue pipeline started
+[2026-05-31 06:00:02] INFO  loaded 10 transactions from data/transactions.json
+[2026-05-31 06:00:02] INFO  revenue summary: total=564.00 count=7
+[2026-05-31 06:00:02] INFO  pipeline finished
+[2026-05-31 09:14:50] WARN  finance flagged the daily report: expected 10 transactions
+                            totalling 964.50, but the summary shows 7 / 564.00
