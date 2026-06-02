@@ -2,7 +2,7 @@
   "name": "off-by-one",
   "stack": "node",
   "difficulty": "hard",
-  "description": "The search API's pagination is wrong — customers say the results list skips the first page, and the test suite is red. Run `node tests/run.js`. Pages are 1-indexed. Fix `src/pagination.js` so the tests pass. Note (see README): a correct getPage must also handle a partial last page and out-of-range pages, returning only the items that exist.",
+  "description": "Customers are complaining that the first page of search results is showing the wrong items — it looks like the listing is skipping results. Track down the bug and fix it.",
   "bugs": [
     "getPage computes start = page * perPage (0-indexed) for 1-indexed pages, so it skips the first page",
     "the loop is unguarded (i < start + perPage with no items.length bound), so on a partial last page or an out-of-range page it pushes undefined past the end of the array"

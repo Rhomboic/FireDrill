@@ -2,7 +2,7 @@
   "name": "silent-data-bug",
   "stack": "python",
   "difficulty": "medium",
-  "description": "The daily revenue report is coming in low. `python3 pipeline.py` runs fine with no error, but finance says the totals are wrong — it should cover all 10 transactions and total 964.50, but the summary undercounts. There is no crash to follow; logs are in logs/. Make `python3 verify_output.py` pass.",
+  "description": "Finance is escalating: today's revenue report looks wrong — the totals are coming in lower than they should be, and the numbers don't reconcile against the day's transactions. Nothing is crashing. Find out why the figures are off and fix it.",
   "bugs": [
     "pipeline.summarize() indexes transactions into a dict keyed by customer_id, which silently overwrites (drops) transactions from repeat customers, so both the total and the count are undercounted"
   ],
