@@ -1,0 +1,11 @@
+{
+  "name": "acme-site",
+  "version": "1.0.0",
+  "description": "Acme marketing site",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.0"
+  }
+}
