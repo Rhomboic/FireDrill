@@ -36,10 +36,11 @@ SCRIPT = [
 ]
 
 
-# ── Fake Anthropic client ────────────────────────────────────────────────────
+# ── Fake Anthropic client (records the kwargs of the last request) ───────────
 class FakeAnthropicMessages:
-    def __init__(self): self.i = 0
+    def __init__(self): self.i = 0; self.last_kwargs = None
     def create(self, **kwargs):
+        self.last_kwargs = kwargs
         name, args = SCRIPT[self.i]; self.i += 1
         block = SimpleNamespace(type="tool_use", id=f"t{self.i}", name=name, input=args)
         usage = SimpleNamespace(input_tokens=100, output_tokens=20)
@@ -49,14 +50,15 @@ class FakeAnthropic:
     def __init__(self): self.messages = FakeAnthropicMessages()
 
 
-# ── Fake OpenAI client ───────────────────────────────────────────────────────
+# ── Fake OpenAI client (records the kwargs of the last request) ──────────────
 class FakeMsg:
     def __init__(self, tool_calls): self.tool_calls = tool_calls
     def model_dump(self, exclude_none=True): return {"role": "assistant", "content": None}
 
 class FakeOpenAICompletions:
-    def __init__(self): self.i = 0
+    def __init__(self): self.i = 0; self.last_kwargs = None
     def create(self, **kwargs):
+        self.last_kwargs = kwargs
         name, args = SCRIPT[self.i]; self.i += 1
         tc = SimpleNamespace(id=f"c{self.i}",
                              function=SimpleNamespace(name=name, arguments=json.dumps(args)))
@@ -66,6 +68,22 @@ class FakeOpenAICompletions:
 
 class FakeOpenAI:
     def __init__(self): self.chat = SimpleNamespace(completions=FakeOpenAICompletions())
+
+
+# ── Fake OpenAI Responses API (reasoning models, e.g. gpt-5.5) ───────────────
+class FakeResponsesAPI:
+    def __init__(self): self.i = 0; self.last_kwargs = None
+    def create(self, **kwargs):
+        self.last_kwargs = kwargs
+        name, args = SCRIPT[self.i]; self.i += 1
+        fc = SimpleNamespace(type="function_call", name=name,
+                             arguments=json.dumps(args), call_id=f"call_{self.i}")
+        usage = SimpleNamespace(input_tokens=100, output_tokens=20,
+                                input_tokens_details=SimpleNamespace(cached_tokens=0))
+        return SimpleNamespace(id=f"resp_{self.i}", output=[fc], usage=usage)
+
+class FakeOpenAIResponses:
+    def __init__(self): self.responses = FakeResponsesAPI()
 
 
 def run_one(model: str, client) -> None:
@@ -89,8 +107,25 @@ def run_one(model: str, client) -> None:
 
 
 def main() -> int:
-    run_one("claude-opus-4-8", FakeAnthropic())
-    run_one("gpt-5.5", FakeOpenAI())
+    # Flagship Claude: reasoning at high effort (adaptive thinking + effort=high),
+    # via Messages API — like-for-like with gpt-5.5's reasoning.
+    ca = FakeAnthropic()
+    run_one("claude-opus-4-8", ca)
+    assert ca.messages.last_kwargs["thinking"] == {"type": "adaptive"}
+    assert ca.messages.last_kwargs["output_config"] == {"effort": "high"}
+
+    # Flagship GPT: high reasoning effort, via the Responses API (chat completions
+    # rejects reasoning_effort + tools).
+    gr = FakeOpenAIResponses()
+    run_one("gpt-5.5", gr)
+    assert gr.responses.last_kwargs["reasoning"] == {"effort": "high"}
+
+    # Small GPT: non-reasoning baseline, via chat completions — no reasoning knob.
+    gm = FakeOpenAI()
+    run_one("gpt-4.1-mini", gm)
+    assert "reasoning_effort" not in gm.chat.completions.last_kwargs
+    assert "reasoning" not in gm.chat.completions.last_kwargs
+
     print("\nALL AGENT SMOKE CHECKS PASSED ✓")
     return 0
 

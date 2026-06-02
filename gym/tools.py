@@ -242,3 +242,22 @@ def openai_tools() -> list[dict]:
         }
         for spec in TOOL_SPECS
     ]
+
+
+def openai_responses_tools() -> list[dict]:
+    """Tool definitions in OpenAI Responses API format (function fields are
+    top-level, not nested under a "function" key like chat completions). The
+    Responses API is required for reasoning models + tools (gpt-5.5)."""
+    return [
+        {
+            "type": "function",
+            "name": spec["name"],
+            "description": spec["description"],
+            "parameters": {
+                "type": "object",
+                "properties": spec["properties"],
+                "required": spec["required"],
+            },
+        }
+        for spec in TOOL_SPECS
+    ]
