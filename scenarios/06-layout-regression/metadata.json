@@ -2,17 +2,25 @@
   "name": "layout-regression",
   "stack": "web",
   "difficulty": "medium",
-  "description": "The marketing site's homepage looks broken — the navigation bar is overlapping the headline at the top of the page, so the first thing visitors see is covered up. Fix the layout.",
+  "description": "The marketing site's homepage looks broken — the navigation bar is overlapping the headline at the top of the page, so the first thing visitors see is covered up. Fix the layout so the navbar never covers the content.",
   "bugs": [
-    "the navbar is position:fixed (60px tall) but .content has margin-top: 0, so the content (including the headline) renders underneath the navbar instead of below it"
+    "the navbar is position:fixed, so it is taken out of normal flow and overlays the page; .content has margin-top: 0, so the content (including the headline) renders underneath the navbar instead of below it",
+    "the navbar has no fixed height: on narrow (mobile) viewports its links wrap onto extra rows and it grows much taller than on desktop, so any fixed desktop-sized top offset still leaves the content clipped under it on mobile"
   ],
-  "success_condition": { "cmd": "playwright test", "exit": 0 },
+  "success_condition": { "cmd": "playwright test tests/layout.spec.js", "exit": 0 },
   "protected_paths": ["tests", "playwright.config.js"],
   "files_expected_to_change": ["public/styles.css"],
-  "regression_check": null,
-  "correct_diagnosis": "The navbar is position:fixed and 60px tall, but .content had margin-top: 0, so the content rendered behind the navbar; offsetting the content by the navbar height (margin-top: 60px) makes the headline clear it.",
+  "regression_check": {
+    "cmd": "playwright test tests/regression.spec.js",
+    "exit": 0
+  },
+  "correct_diagnosis": "The navbar is position:fixed (out of flow) so it overlays the content, and .content had no offset — and because the navbar has no fixed height it grows taller when its links wrap on mobile, so a hardcoded top margin can't reliably clear it. Putting the navbar in normal flow (position: sticky) so the content always lays out below it, regardless of the navbar's height, fixes the overlap at every viewport.",
   "reference_fix": {
-    "description": "Offset the content below the 60px fixed navbar.",
+    "description": "Put the navbar in normal flow (position: sticky) so content always sits below it at any navbar height.",
+    "cmd": "node -e \"const fs=require('fs');const p='public/styles.css';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('position: fixed;', 'position: sticky;'));\""
+  },
+  "naive_fix": {
+    "description": "Trap bait: push the content down by a fixed desktop-sized margin (margin-top: 60px). The desktop overlap is gone (visible check passes), but on mobile the navbar's links wrap and it grows taller than 60px, so the headline is still clipped under it — the held-out mobile regression fails.",
     "cmd": "node -e \"const fs=require('fs');const p='public/styles.css';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('margin-top: 0;', 'margin-top: 60px;'));\""
   }
 }

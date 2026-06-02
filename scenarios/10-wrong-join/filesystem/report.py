@@ -7,6 +7,7 @@ QUERY = """
 SELECT c.name, COALESCE(SUM(o.amount), 0) AS revenue
 FROM customers c
 JOIN orders o ON o.customer_id = c.id
+LEFT JOIN line_items li ON li.order_id = o.id
 GROUP BY c.id
 ORDER BY c.name
 """

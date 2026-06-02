@@ -4,20 +4,44 @@ body {
 }
 
 .navbar {
+  /* The navbar is pinned to the top. On wide screens the brand and links sit on
+     one row (~60px tall); on narrow screens the links wrap onto extra rows, so
+     the navbar gets TALLER than 60px. */
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 60px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 24px;
+  gap: 8px 24px;
+  padding: 18px 24px;
+  box-sizing: border-box;
   background: #1a1a1a;
   color: #fff;
 }
 
+.navbar .brand {
+  font-weight: 700;
+}
+
+.navbar .nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navbar .nav-links a {
+  color: #fff;
+  text-decoration: none;
+}
+
 .content {
-  /* The fixed navbar is 60px tall; the content needs to start below it. */
+  /* The fixed navbar overlays the page, so the content renders underneath it
+     instead of below it. */
   margin-top: 0;
   padding: 24px;
 }

@@ -1,5 +1,6 @@
 {
   "port": 8080,
-  "workers": 0,
+  "workers": 4,
+  "request_timeout": 30,
   "log_level": "info",
 }

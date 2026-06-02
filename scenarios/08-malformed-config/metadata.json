@@ -1,18 +1,26 @@
 {
   "name": "malformed-config",
   "stack": "config",
-  "difficulty": "medium",
+  "difficulty": "hard",
   "description": "The web service won't start after a config change — it's crashing on startup and is down. Get it serving again.",
   "bugs": [
-    "config/settings.json has a trailing comma after the last key, so it is not valid JSON and json.loads raises JSONDecodeError",
-    "once the JSON parses, workers is set to 0, which fails the workers >= 1 startup check"
+    "config/settings.json has a trailing comma after the last key, so it is not valid JSON and json.loads raises JSONDecodeError on startup — the visible crash",
+    "effective_config() merges the layers in the wrong precedence: it does cfg = dict(settings) then cfg.update(defaults), so the shipped defaults.json clobbers the operator's settings.json instead of the other way around. The effective request_timeout silently comes from defaults (5) instead of the operator's settings (30)"
   ],
   "success_condition": { "cmd": "python3 app.py", "exit": 0 },
-  "files_expected_to_change": ["config/settings.json"],
-  "regression_check": null,
-  "correct_diagnosis": "config/settings.json was invalid JSON (a trailing comma after the last key) and set workers to 0; removing the trailing comma and setting a positive worker count lets the service start.",
+  "protected_paths": ["config/defaults.json", "logs"],
+  "files_expected_to_change": ["config/settings.json", "app.py"],
+  "regression_check": {
+    "cmd": "REQUEST_TIMEOUT= python3 -c \"import os,sys; os.environ.pop('REQUEST_TIMEOUT',None); sys.path.insert(0,'.'); import app; c=app.effective_config(); assert c['request_timeout']==30, ('effective request_timeout='+str(c['request_timeout'])+', operator settings.json (30) was shadowed by defaults.json (5)'); assert c['port']==8080, c['port']; assert c['log_level']=='info', c['log_level']\"",
+    "exit": 0
+  },
+  "correct_diagnosis": "config/settings.json had a trailing comma (invalid JSON, the visible startup crash), and effective_config() merged the layers backwards — it started from settings and then called cfg.update(defaults), so the shipped defaults clobbered the operator's overrides and the effective request_timeout was 5 instead of 30. Fixing the JSON and inverting the merge so settings override defaults resolves both.",
   "reference_fix": {
-    "description": "Make settings.json valid JSON and set a positive worker count.",
-    "cmd": "cat > config/settings.json <<'EOF'\n{\n  \"port\": 8080,\n  \"workers\": 4,\n  \"log_level\": \"info\"\n}\nEOF"
+    "description": "Make settings.json valid JSON and fix effective_config() so operator settings override the shipped defaults (start from defaults, then apply settings).",
+    "cmd": "cat > config/settings.json <<'EOF'\n{\n  \"port\": 8080,\n  \"workers\": 4,\n  \"request_timeout\": 30,\n  \"log_level\": \"info\"\n}\nEOF\npython3 - <<'PY'\nimport pathlib\np = pathlib.Path('app.py')\ns = p.read_text()\ns = s.replace('    cfg = dict(settings)\\n    cfg.update(defaults)  # layer the two config files', '    cfg = dict(defaults)\\n    cfg.update(settings)  # operator settings override the shipped defaults')\np.write_text(s)\nPY"
+  },
+  "naive_fix": {
+    "description": "Trap bait: only fix the JSON syntax error (remove the trailing comma). The service starts and prints its config (success condition passes), but the wrong-precedence merge is untouched, so the effective request_timeout is still the defaults' 5 instead of the operator's 30 — the held-out regression fails.",
+    "cmd": "cat > config/settings.json <<'EOF'\n{\n  \"port\": 8080,\n  \"workers\": 4,\n  \"request_timeout\": 30,\n  \"log_level\": \"info\"\n}\nEOF"
   }
 }

@@ -1,18 +1,27 @@
 {
   "name": "payments-service-down",
   "stack": "python",
-  "difficulty": "easy",
+  "difficulty": "hard",
   "description": "The payments service is down. It was healthy earlier today, but now it won't start — customers can't check out. Get it back online.",
   "bugs": [
     "config/.env is missing the required STRIPE_API_KEY, so Settings() raises KeyError on boot",
-    "config/.env sets MAX_RETRIES=three, a non-integer that crashes int() parsing once the key issue is past"
+    "config/.env sets MAX_RETRIES=three, a non-integer that crashes int() parsing once the key issue is past",
+    "call_with_retries in app/payments.py loops `range(1, attempts)` — an off-by-one that runs one fewer than the configured number of attempts, so a transient provider failure that would clear within the retry budget is given up on prematurely; the happy-path self-check succeeds on the first try so this stays invisible at boot"
   ],
   "success_condition": { "cmd": "python3 main.py", "exit": 0 },
-  "files_expected_to_change": ["config/.env"],
-  "regression_check": null,
-  "correct_diagnosis": "The service failed to boot because config/.env was missing the required STRIPE_API_KEY and set MAX_RETRIES to a non-integer ('three'); providing a valid sk_ key and an integer retry count lets it start.",
+  "protected_paths": [],
+  "regression_check": {
+    "cmd": "python3 -c \"import sys; sys.path.insert(0, '.'); from app.payments import call_with_retries, TransientError; calls={'n': 0}\ndef flaky(attempt):\n    calls['n'] += 1\n    if calls['n'] < 3:\n        raise TransientError('transient')\n    return {'ok': True, 'attempt': attempt}\nr = call_with_retries(flaky, 3)\nassert r == {'ok': True, 'attempt': 3}, r\nassert calls['n'] == 3, calls['n']\"",
+    "exit": 0
+  },
+  "files_expected_to_change": ["config/.env", "app/payments.py"],
+  "correct_diagnosis": "The service failed to boot because config/.env was missing the required STRIPE_API_KEY and set MAX_RETRIES to a non-integer ('three'). Underneath that, call_with_retries in app/payments.py looped over `range(1, attempts)`, an off-by-one that performs one fewer attempt than configured, so a provider failure that would clear within the retry budget is abandoned early; fixing the .env and changing the loop to `range(1, attempts + 1)` resolves both.",
   "reference_fix": {
-    "description": "Repair config/.env: add a valid STRIPE_API_KEY and fix MAX_RETRIES.",
+    "description": "Repair config/.env (valid STRIPE_API_KEY + integer MAX_RETRIES) and fix the off-by-one in call_with_retries so it uses the full attempt budget.",
+    "cmd": "cat > config/.env <<'EOF'\n# Payments service configuration\nPORT=8080\nMAX_RETRIES=3\nSTRIPE_API_KEY=sk_test_51FireDrillExampleKeyDoNotUse\nENV=production\nEOF\npython3 -c \"import pathlib; p=pathlib.Path('app/payments.py'); s=p.read_text(); s=s.replace('for attempt in range(1, attempts):', 'for attempt in range(1, attempts + 1):'); p.write_text(s)\""
+  },
+  "naive_fix": {
+    "description": "Trap bait: repair only config/.env so the service boots and the happy-path self-check passes — but leave the off-by-one in call_with_retries, so a transient provider failure within the retry budget is still abandoned early.",
     "cmd": "cat > config/.env <<'EOF'\n# Payments service configuration\nPORT=8080\nMAX_RETRIES=3\nSTRIPE_API_KEY=sk_test_51FireDrillExampleKeyDoNotUse\nENV=production\nEOF"
   }
 }

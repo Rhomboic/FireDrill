@@ -10,7 +10,7 @@
   "success_condition": { "cmd": "node tests/run.js", "exit": 0 },
   "protected_paths": ["tests"],
   "regression_check": {
-    "cmd": "node -e 'const {getPage}=require(\"./src/pagination\");const a=require(\"assert\");a.deepStrictEqual(getPage([\"a\",\"b\",\"c\",\"d\",\"e\"],3,2),[\"e\"]);a.deepStrictEqual(getPage([\"a\",\"b\",\"c\"],9,2),[]);'",
+    "cmd": "node -e 'const {getPage}=require(\"./src/pagination\");const a=require(\"assert\");a.deepStrictEqual(getPage([\"a\",\"b\",\"c\",\"d\",\"e\"],3,2),[\"e\"]);a.deepStrictEqual(getPage([\"a\",\"b\",\"c\"],9,2),[]);a.deepStrictEqual(getPage([],1,2),[]);a.deepStrictEqual(getPage([\"a\",\"b\",\"c\"],2,2),[\"c\"]);'",
     "exit": 0
   },
   "files_expected_to_change": ["src/pagination.js"],

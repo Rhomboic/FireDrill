@@ -1,1 +1,11 @@
-["Apollo", "Borealis", "Cascade", "Drift"]
+{
+  "page": 1,
+  "page_size": 20,
+  "total": 4,
+  "results": [
+    { "id": 1, "name": "Apollo" },
+    { "id": 2, "name": "Borealis" },
+    { "id": 3, "name": "Cascade" },
+    { "id": 4, "name": "Drift" }
+  ]
+}
