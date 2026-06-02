@@ -111,7 +111,12 @@ export default function App() {
 
         <footer>
           <div className="footer-inner">
-            <span className="footer-left">FireDrill Agent Gym · 2026</span>
+            <span className="footer-left">
+              FireDrill Agent Gym · 2026 ·{" "}
+              <a href="https://github.com/Rhomboic/FireDrill" target="_blank" rel="noreferrer">
+                GitHub
+              </a>
+            </span>
             <span className="footer-right">
               Built by{" "}
               <a href="https://adamissah.com" target="_blank" rel="noreferrer">
