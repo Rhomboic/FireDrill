@@ -16,6 +16,7 @@ Usage:
     python3 scenarios/validate.py 01-payments-service-down   # just one
 """
 
+import json
 import sys
 import tempfile
 from pathlib import Path
@@ -58,6 +59,27 @@ def validate_scenario(scenario_dir: Path) -> list[str]:
                 "not CLEAN: reference fix touched files outside files_expected_to_change: "
                 f"{post.unexpected_files}"
             )
+        # The reference fix must also pass the held-out regression (if defined),
+        # otherwise the scenario punishes even a correct fix.
+        if env.metadata.get("regression_check") and post.regression_passed is not True:
+            failures.append("reference fix does NOT pass regression_check (scenario is unsound)")
+
+        # 4. TRAP (optional) — a naive_fix must PASS the success condition but
+        # FAIL the regression, proving the trap actually discriminates.
+        naive = env.metadata.get("naive_fix", {})
+        if naive.get("cmd"):
+            if not env.metadata.get("regression_check"):
+                failures.append("naive_fix defined but no regression_check to trip")
+            else:
+                env.reset()
+                nobs = env.tools.run_command(naive["cmd"])
+                if not nobs.ok:
+                    failures.append(f"naive_fix.cmd failed to run: {nobs.text.strip()[:200]}")
+                npost = env.verify()
+                if not npost.resolution:
+                    failures.append("TRAP broken: naive_fix should PASS the success condition")
+                if npost.regression_passed is not False:
+                    failures.append("TRAP broken: naive_fix should FAIL the regression_check")
         env.close()
     return failures
 
@@ -92,7 +114,9 @@ def main() -> int:
             for f in failures:
                 print(f"    - {f}")
         else:
-            print(f"✓ {scenario_dir.name}  (broken → fixable → clean)")
+            meta = json.loads((scenario_dir / "metadata.json").read_text())
+            extra = " + trap" if meta.get("naive_fix", {}).get("cmd") else ""
+            print(f"✓ {scenario_dir.name}  (broken → fixable → clean{extra})")
 
     print()
     print("VALIDATION PASSED" if all_ok else "VALIDATION FAILED")

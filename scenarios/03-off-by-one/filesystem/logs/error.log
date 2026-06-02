@@ -1,0 +1,8 @@
+[2026-05-31 21:40:11] QA  pagination test suite is RED
+[2026-05-31 21:40:11] QA  node tests/run.js
+    AssertionError [ERR_ASSERTION]: page 1 should be the first two items
+        + actual   - expected
+        + [ "c", "d" ]
+        - [ "a", "b" ]
+        at Object.<anonymous> (tests/run.js)
+[2026-05-31 21:41:02] SUP customers report the search results list skips the first page of results
