@@ -1,8 +1,8 @@
 # FireDrill
 
-**An agent gym for incident response.** It's 11pm, a startup's service is down, and the on-call engineer is an AI agent. FireDrill drops a policy into a sandboxed, broken software project and asks it to diagnose and fix the incident — then scores not just *whether* it fixed things, but *how* it reasoned, how efficiently it worked, and whether it broke anything else along the way.
+**An RL-compatible agent gym with a Gymnasium-style `reset`/`step`/`verify` interface.** FireDrill is a reusable, reproducible, resettable environment that **any** policy — an LLM agent, a human, or an RL training loop — can be dropped into and stepped through. The artifact is the *environment*, not the scorer.
 
-FireDrill is a **gym**: the artifact is the *environment* — a reusable, reproducible, resettable world that **any** policy (an LLM agent, a human, or an RL training loop) can be dropped into and stepped through. Each environment is a stateful software project with a real filesystem, logs, and side effects; the agent acts through tools, and the world responds. Scoring is one consumer of the environment, not the point of it.
+The task domain makes it concrete: it's 11pm, a startup's service is down, and the on-call engineer is an AI agent. Each environment is a stateful, broken software project with a real filesystem, logs, and side effects; the policy acts through tools and the world responds, with **reward queryable at any step** (the precondition for RL use). The agent must diagnose and fix the incident — and it's scored not just on *whether* it fixed things, but *how* it reasoned, how efficiently it worked, and whether it broke anything else along the way. Scoring is one consumer of the environment, not the point of it.
 
 ## The environment interface
 
@@ -47,7 +47,7 @@ gym/            FireDrillEnv (environment.py), the policy-agnostic protocol, and
 agent/          one LLM policy that drives the env (Claude + OpenAI), swappable
 eval/           4-dimension scoring + LLM-as-judge
 runner/         container entrypoint: reset → run policy → verify → score → upload results
-scenarios/      the 10 broken projects (filesystem/, metadata.json, Dockerfile each)
+scenarios/      the 10 broken projects (filesystem/ + metadata.json each)
 orchestrator/   launch the scenario × model job matrix
 terraform/      ECS-on-EC2 + autoscaling, ECR, S3, secrets, dashboard infra
 dashboard/      static results dashboard (firedrill.adamissah.com)
@@ -86,8 +86,9 @@ runtime env vars:
 # builds firedrill:latest, runs the job, writes results/<model>/<scenario>.json
 ```
 
-Python + Node + SQLite scenarios run in this image; the React/Playwright UI
-scenarios use a separate image (WIP).
+Python, Node, SQLite, and Docker scenarios run in this universal image; the
+React/Playwright UI scenarios run in a dedicated Playwright image
+(`Dockerfile.ui`, `firedrill:ui`).
 
 ## Infrastructure
 
@@ -95,4 +96,7 @@ Each job is a self-contained container — one `(scenario × model)` episode tha
 
 ## Status
 
-🚧 Under active construction.
+Live. Ten scenarios across Python, Node, React/Playwright, config, Docker, and
+SQL, each gated by an objective verifier (broken → fixable → clean). The full
+`scenario × model` matrix runs on ECS-on-EC2 autoscaling across four models, and
+results render at **[firedrill.adamissah.com](https://firedrill.adamissah.com)**.
