@@ -1,0 +1,6 @@
+{
+  "port": 8000,
+  "workers": 4,
+  "request_timeout": 5,
+  "log_level": "warning"
+}

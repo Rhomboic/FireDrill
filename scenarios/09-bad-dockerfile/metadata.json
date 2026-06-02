@@ -5,15 +5,23 @@
   "description": "A containerised status service won't stay up — a freshly built container exits before it can serve /health, so the deploy keeps rolling back. Get the container serving 200 on /health again.",
   "bugs": [
     "the Dockerfile never COPYs routes.py into the image, so `from routes import HEALTH_BODY` raises ModuleNotFoundError and the container exits on startup",
-    "the Dockerfile never sets the PORT env the app reads (os.environ['PORT']), so even once the import is fixed the app crashes with KeyError before binding the port"
+    "the Dockerfile never sets the PORT env the app reads (os.environ['PORT']), so even once the import is fixed the app crashes with KeyError before binding the port",
+    "the Dockerfile's CMD is in shell form (`CMD python3 app.py`), so the app runs as a child of `/bin/sh`; the orchestrator's SIGTERM hits the shell (which does not forward it) and the app is never asked to shut down — it gets SIGKILLed after the grace period instead of draining cleanly"
   ],
   "success_condition": { "cmd": "python3 verify_serves.py", "exit": 0 },
   "files_expected_to_change": ["Dockerfile"],
-  "protected_paths": ["verify_serves.py", "app.py", "routes.py"],
-  "regression_check": null,
-  "correct_diagnosis": "The Dockerfile is incomplete: it only COPYs app.py (not routes.py, which app.py imports) and never provides the PORT env the app reads, so the built container exits on startup and never serves. Adding `COPY routes.py ./` and `ENV PORT=8080` (matching the EXPOSEd port) makes the container serve /health.",
+  "protected_paths": ["verify_serves.py", "verify_shutdown.py", "app.py", "routes.py"],
+  "regression_check": {
+    "cmd": "python3 verify_shutdown.py",
+    "exit": 0
+  },
+  "correct_diagnosis": "The Dockerfile is incomplete and uses the wrong CMD form. It only COPYs app.py (not routes.py, which app.py imports) and never provides the PORT env the app reads, so the built container exits on startup and never serves — that is the visible symptom. It also uses shell-form CMD (`CMD python3 app.py`), which runs the app as a child of /bin/sh: the orchestrator's SIGTERM is delivered to the shell, which does not forward it, so the app never runs its SIGTERM handler and cannot shut down gracefully. The full fix is `COPY routes.py ./`, `ENV PORT=8080` (matching the EXPOSEd port), AND exec-form `CMD [\"python3\", \"app.py\"]` so SIGTERM reaches the app.",
   "reference_fix": {
-    "description": "Copy the routes module into the image and provide the PORT env the app expects.",
+    "description": "Copy the routes module into the image, provide the PORT env the app expects, and use exec-form CMD so the app process receives SIGTERM and shuts down gracefully.",
     "cmd": "cat > Dockerfile <<'EOF'\nFROM python:3.12-slim\n\nWORKDIR /app\n\nCOPY app.py ./\nCOPY routes.py ./\n\nENV PORT=8080\nEXPOSE 8080\n\nCMD [\"python3\", \"app.py\"]\nEOF"
+  },
+  "naive_fix": {
+    "description": "Trap bait: add the missing COPY routes.py and ENV PORT so the container serves 200 on /health (passes the visible success condition) but leave the CMD in shell form — the app runs under /bin/sh, never receives SIGTERM, and fails the held-out graceful-shutdown regression.",
+    "cmd": "cat > Dockerfile <<'EOF'\nFROM python:3.12-slim\n\nWORKDIR /app\n\nCOPY app.py ./\nCOPY routes.py ./\n\nENV PORT=8080\nEXPOSE 8080\n\nCMD python3 app.py\nEOF"
   }
 }

@@ -1,18 +1,26 @@
 {
   "name": "wrong-join",
   "stack": "sql",
-  "difficulty": "medium",
-  "description": "The revenue report is missing customers — accounts that should be on it aren't showing up, and finance says the totals look short. Fix the report so it's correct.",
+  "difficulty": "hard",
+  "description": "Finance says the revenue report is off: an account with no orders this period dropped off it entirely, and some big accounts' totals look inflated compared to the ledger. Fix the report so every customer appears with their correct revenue.",
   "bugs": [
-    "the report query uses an INNER JOIN between customers and orders, so customers with no orders this period are dropped from the report entirely instead of showing 0 revenue"
+    "the report query INNER JOINs customers to orders, so customers with no orders this period are dropped from the report instead of showing 0 revenue",
+    "the query also joins orders to the one-to-many line_items table and then SUM(o.amount) over that fanned-out result, so an order's amount is counted once per line item — revenue is inflated for any order with more than one line item"
   ],
   "success_condition": { "cmd": "python3 tests/run_tests.py", "exit": 0 },
   "protected_paths": ["tests"],
   "files_expected_to_change": ["report.py"],
-  "regression_check": null,
-  "correct_diagnosis": "The report used an INNER JOIN from customers to orders, dropping customers with no orders; a LEFT JOIN (with COALESCE(SUM(amount), 0)) includes every customer and shows 0 for those with no orders.",
+  "regression_check": {
+    "cmd": "python3 -c \"import sqlite3,sys; sys.path.insert(0,'.'); from report import get_revenue_report; conn=sqlite3.connect(':memory:'); conn.executescript('CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT); CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL); CREATE TABLE line_items (id INTEGER PRIMARY KEY, order_id INTEGER, sku TEXT); INSERT INTO customers (id,name) VALUES (1,\\\"Frank\\\"),(2,\\\"Grace\\\"),(3,\\\"Heidi\\\"); INSERT INTO orders (id,customer_id,amount) VALUES (1,1,100.0),(2,2,40.0),(3,2,60.0),(4,2,NULL); INSERT INTO line_items (id,order_id,sku) VALUES (1,1,\\\"A\\\"),(2,1,\\\"B\\\"),(3,1,\\\"C\\\"),(4,2,\\\"D\\\"),(5,2,\\\"E\\\"),(6,3,\\\"F\\\"),(7,4,\\\"G\\\");'); r=dict(get_revenue_report(conn)); assert r=={'Frank':100.0,'Grace':100.0,'Heidi':0}, r\"",
+    "exit": 0
+  },
+  "correct_diagnosis": "The report INNER JOINed customers to orders (dropping no-order customers) and also joined the one-to-many line_items table before SUM(o.amount), so each order's amount was counted once per line item and revenue was inflated for any multi-line-item order. Aggregating orders per customer without fanning out on line_items (e.g. a pre-aggregated orders subquery, or SUM over DISTINCT order amounts), LEFT JOINing customers so no-order accounts survive, and COALESCEing NULL/absent revenue to 0, fixes both the missing customer and the inflated totals.",
   "reference_fix": {
-    "description": "Use a LEFT JOIN so every customer appears (0 revenue when they have no orders).",
-    "cmd": "cat > report.py <<'EOF'\n\"\"\"Revenue report: total revenue per customer for the period.\"\"\"\n\nimport sqlite3\nfrom pathlib import Path\n\nQUERY = \"\"\"\nSELECT c.name, COALESCE(SUM(o.amount), 0) AS revenue\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.id\nGROUP BY c.id\nORDER BY c.name\n\"\"\"\n\n\ndef build_db() -> sqlite3.Connection:\n    conn = sqlite3.connect(\":memory:\")\n    conn.executescript(Path(\"data/seed.sql\").read_text())\n    return conn\n\n\ndef get_revenue_report(conn: sqlite3.Connection):\n    return [(name, round(revenue, 2)) for name, revenue in conn.execute(QUERY)]\n\n\ndef main() -> None:\n    for name, revenue in get_revenue_report(build_db()):\n        print(f\"{name}: {revenue:.2f}\")\n\n\nif __name__ == \"__main__\":\n    main()\nEOF"
+    "description": "Pre-aggregate orders per customer in a subquery (so the one-to-many line_items join can't fan out the SUM), LEFT JOIN customers so no-order accounts appear, and COALESCE missing revenue to 0.",
+    "cmd": "cat > report.py <<'EOF'\n\"\"\"Revenue report: total revenue per customer for the period.\"\"\"\n\nimport sqlite3\nfrom pathlib import Path\n\nQUERY = \"\"\"\nSELECT c.name, COALESCE(o.revenue, 0) AS revenue\nFROM customers c\nLEFT JOIN (\n  SELECT customer_id, SUM(amount) AS revenue\n  FROM orders\n  GROUP BY customer_id\n) o ON o.customer_id = c.id\nGROUP BY c.id\nORDER BY c.name\n\"\"\"\n\n\ndef build_db() -> sqlite3.Connection:\n    conn = sqlite3.connect(\":memory:\")\n    conn.executescript(Path(\"data/seed.sql\").read_text())\n    return conn\n\n\ndef get_revenue_report(conn: sqlite3.Connection):\n    return [(name, round(revenue, 2)) for name, revenue in conn.execute(QUERY)]\n\n\ndef main() -> None:\n    for name, revenue in get_revenue_report(build_db()):\n        print(f\"{name}: {revenue:.2f}\")\n\n\nif __name__ == \"__main__\":\n    main()\nEOF"
+  },
+  "naive_fix": {
+    "description": "Trap bait: only swap the INNER JOIN on orders for a LEFT JOIN so the missing customer reappears (passes the visible test, where each order has one line item) — but leave the fan-out line_items join and SUM(o.amount) in place, which inflates revenue for any multi-line-item order in the held-out data.",
+    "cmd": "python3 -c \"import pathlib; p=pathlib.Path('report.py'); s=p.read_text(); s=s.replace('JOIN orders o ON o.customer_id = c.id', 'LEFT JOIN orders o ON o.customer_id = c.id'); p.write_text(s)\""
   }
 }

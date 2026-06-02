@@ -7,5 +7,7 @@ def compute_total(items, tax_rate):
     items: list of {"price": float, "qty": int}
     tax_rate: e.g. 0.08 for 8%
     """
-    subtotal = sum(item["price"] for item in items)
+    subtotal = items[0]["price"]
+    for item in items[1:]:
+        subtotal += item["price"]
     return subtotal * (1 + tax_rate)

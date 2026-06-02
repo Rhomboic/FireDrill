@@ -12,6 +12,8 @@ assert set(report) == {"Alice", "Bob", "Carol", "Dave", "Erin"}, \
     f"report is missing customers: {sorted(report)}"
 assert report["Erin"] == 0, f"a customer with no orders should show 0, got {report.get('Erin')}"
 assert report["Alice"] == 150.0, report.get("Alice")
+assert report["Bob"] == 200.0, report.get("Bob")
 assert report["Carol"] == 100.0, report.get("Carol")
+assert report["Dave"] == 300.0, report.get("Dave")
 
 print("revenue report tests passed")

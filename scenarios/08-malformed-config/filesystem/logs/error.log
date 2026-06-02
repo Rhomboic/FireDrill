@@ -1,12 +1,14 @@
 [2026-05-31 23:11:04] INFO  starting web service...
-[2026-05-31 23:11:04] INFO  loading config/settings.json
+[2026-05-31 23:11:04] INFO  loading layered config (defaults.json + settings.json)
 [2026-05-31 23:11:04] ERROR failed to start
 Traceback (most recent call last):
-  File "app.py", line 21, in <module>
+  File "app.py", line 58, in <module>
     sys.exit(main())
-  File "app.py", line 14, in main
-    cfg = load_config()
-  File "app.py", line 10, in load_config
+  File "app.py", line 45, in main
+    cfg = effective_config()
+  File "app.py", line 33, in effective_config
+    settings = _load(SETTINGS)
+  File "app.py", line 23, in _load
     return json.loads(Path(path).read_text())
-json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 5 column 1 (char 57)
+json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 6 column 1 (char 82)
 [2026-05-31 23:11:04] FATAL server down — config rejected

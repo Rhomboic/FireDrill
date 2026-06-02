@@ -1,4 +1,7 @@
 [2026-05-31 07:00:03] revenue report generated: 4 rows
 [2026-05-31 09:22:10] TICKET finance: the revenue report is short a customer —
-                      accounts with no orders this period are dropping off the
+                      an account with no orders this period dropped off the
                       report entirely instead of showing 0.
+[2026-05-31 16:48:55] TICKET finance: spot-checking a few big accounts, some
+                      revenue totals look inflated vs. the ledger when an order
+                      has several line items. Please make the totals correct.

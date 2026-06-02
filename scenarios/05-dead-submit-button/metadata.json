@@ -2,17 +2,25 @@
   "name": "dead-submit-button",
   "stack": "web",
   "difficulty": "medium",
-  "description": "Customers report that the 'Request a demo' button on the marketing site does nothing — they click it and no confirmation ever appears. Sales is losing leads. Fix it.",
+  "description": "Customers report that the 'Request a demo' button on the marketing site does nothing — they click it and no confirmation ever appears. Sales is losing leads. Fix it so a customer who enters their email gets a confirmation.",
   "bugs": [
-    "public/app.js looks up the button by the wrong id (getElementById('submitBtn')) while the button's id is 'submit-btn', so it returns null and the click handler is never attached (the script throws on load)"
+    "public/app.js looks up the button by the wrong id (getElementById('submitBtn')) while the button's id is 'submit-btn', so it returns null and the click handler is never attached (the script throws on load)",
+    "the validation branch is inverted: it shows the 'invalid email' error when isValidEmail(email) is TRUE, so even after the handler is wired up a valid address is rejected — the confirmation never shows and the field is never cleared"
   ],
-  "success_condition": { "cmd": "playwright test", "exit": 0 },
+  "success_condition": { "cmd": "playwright test tests/submit.spec.js", "exit": 0 },
   "protected_paths": ["tests", "playwright.config.js"],
   "files_expected_to_change": ["public/app.js"],
-  "regression_check": null,
-  "correct_diagnosis": "app.js selected the submit button with the wrong id ('submitBtn' vs the actual 'submit-btn'), so getElementById returned null and the click handler was never wired up; using the correct id attaches the handler and the confirmation appears.",
+  "regression_check": {
+    "cmd": "playwright test tests/regression.spec.js",
+    "exit": 0
+  },
+  "correct_diagnosis": "Two bugs: app.js selected the submit button with the wrong id ('submitBtn' vs the actual 'submit-btn') so the click handler never attached, AND the validation check was inverted (it errored when the email WAS valid). Using the correct id wires the handler, and flipping the validation condition so valid input takes the success branch makes the confirmation appear and clears the field; invalid input is still rejected.",
   "reference_fix": {
-    "description": "Use the correct button id so the click handler attaches.",
+    "description": "Use the correct button id AND fix the inverted validation so valid input succeeds.",
+    "cmd": "cat > public/app.js <<'EOF'\n// Wire up the demo-request form: on submit, validate the email, then either\n// show a confirmation (and clear the field) or show a validation error.\n\nconst btn = document.getElementById(\"submit-btn\");\n\nfunction isValidEmail(value) {\n  return /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(value);\n}\n\nbtn.addEventListener(\"click\", () => {\n  const input = document.getElementById(\"email\");\n  const result = document.getElementById(\"result\");\n  const email = input.value.trim();\n\n  if (!isValidEmail(email)) {\n    result.textContent = \"Please enter a valid email address.\";\n    return;\n  }\n\n  result.textContent = `Thanks! We'll email ${email}.`;\n  input.value = \"\";\n});\nEOF"
+  },
+  "naive_fix": {
+    "description": "Trap bait: fix only the wrong id (the click now produces a response, so the visible smoke test passes) but leave the inverted validation — valid input is wrongly rejected, so the held-out 'valid email succeeds' regression fails.",
     "cmd": "node -e \"const fs=require('fs');const p='public/app.js';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('submitBtn','submit-btn'));\""
   }
 }

@@ -1,6 +1,7 @@
 # acme-site
 
-Acme's marketing site (`public/`). A fixed top navbar sits above the page content.
+Acme's marketing site (`public/`). A top navigation bar sits above the page
+content; the navbar should never cover the content, on desktop or mobile.
 
 ## Test
 
