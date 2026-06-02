@@ -67,6 +67,13 @@ class FireDrillEnv:
             raise FileNotFoundError(f"scenario has no filesystem/ at {self.golden}")
         self.metadata = self._load_metadata()
 
+        # Grader files (tests / verifiers) the agent must not be able to tamper
+        # with. They are restored from golden before scoring (so resolution is
+        # un-gameable) and excluded from blast radius (so editing them isn't
+        # counted as collateral damage). Paths are relative to the workspace;
+        # a value may be a file or a directory prefix.
+        self.protected_paths = list(self.metadata.get("protected_paths", []))
+
         self.tools = ToolExecutor(self.workspace, cmd_timeout=cmd_timeout)
 
         # episode state (populated by reset)
@@ -94,6 +101,32 @@ class FireDrillEnv:
             shutil.rmtree(self.workspace)
         shutil.copytree(self.golden, self.workspace)
 
+    def _is_protected(self, rel: str) -> bool:
+        """True if a relative path is (under) a protected grader path."""
+        rel = rel.replace("\\", "/")
+        for p in self.protected_paths:
+            p = str(p).strip("/").replace("\\", "/")
+            if rel == p or rel.startswith(p + "/"):
+                return True
+        return False
+
+    def _restore_protected(self) -> None:
+        """Reset the grader files to their pristine golden state so the agent's
+        edits to them can't influence scoring. Run right before verify()."""
+        for p in self.protected_paths:
+            rel = str(p).strip("/")
+            golden_src = self.golden / rel
+            ws_dst = self.workspace / rel
+            if not golden_src.exists():
+                continue
+            if golden_src.is_dir():
+                if ws_dst.exists():
+                    shutil.rmtree(ws_dst)
+                shutil.copytree(golden_src, ws_dst)
+            else:
+                ws_dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(golden_src, ws_dst)
+
     def _is_ignored(self, f: Path) -> bool:
         """True for runtime byproducts (caches, bytecode) that are not agent edits."""
         rel_parts = f.relative_to(self.workspace).parts
@@ -115,12 +148,14 @@ class FireDrillEnv:
         }
 
     def _modified_files(self) -> list[str]:
-        """Files created, deleted, or changed since reset — the raw blast radius."""
+        """Files created, deleted, or changed since reset — the raw blast radius.
+        Protected grader files are excluded (editing a test is not collateral
+        damage, and resolution is graded against the pristine copy anyway)."""
         current = self._hash_workspace()
         before, after = self._initial_hashes, current
         changed = {p for p in after if before.get(p) != after[p]}
         deleted = {p for p in before if p not in after}
-        return sorted(changed | deleted)
+        return sorted(p for p in (changed | deleted) if not self._is_protected(p))
 
     # ── gym API ───────────────────────────────────────────────────────────────
     def reset(self) -> Observation:
@@ -171,6 +206,10 @@ class FireDrillEnv:
     def verify(self) -> RewardSignal:
         """Run the objective checks against the current workspace state. Callable
         at any point in an episode (this is what makes the reward RL-usable)."""
+        # Grade against the PRISTINE grader, not whatever the agent may have done
+        # to the test files — resolution must be un-gameable.
+        self._restore_protected()
+
         sc = self.metadata.get("success_condition", {})
         cmd = sc.get("cmd", "")
         expected_exit = sc.get("exit", 0)
