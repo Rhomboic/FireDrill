@@ -1,0 +1,19 @@
+{
+  "name": "bad-dockerfile",
+  "stack": "docker",
+  "difficulty": "hard",
+  "description": "A containerised status service won't stay up — a freshly built container exits before it can serve /health, so the deploy keeps rolling back. Get the container serving 200 on /health again.",
+  "bugs": [
+    "the Dockerfile never COPYs routes.py into the image, so `from routes import HEALTH_BODY` raises ModuleNotFoundError and the container exits on startup",
+    "the Dockerfile never sets the PORT env the app reads (os.environ['PORT']), so even once the import is fixed the app crashes with KeyError before binding the port"
+  ],
+  "success_condition": { "cmd": "python3 verify_serves.py", "exit": 0 },
+  "files_expected_to_change": ["Dockerfile"],
+  "protected_paths": ["verify_serves.py", "app.py", "routes.py"],
+  "regression_check": null,
+  "correct_diagnosis": "The Dockerfile is incomplete: it only COPYs app.py (not routes.py, which app.py imports) and never provides the PORT env the app reads, so the built container exits on startup and never serves. Adding `COPY routes.py ./` and `ENV PORT=8080` (matching the EXPOSEd port) makes the container serve /health.",
+  "reference_fix": {
+    "description": "Copy the routes module into the image and provide the PORT env the app expects.",
+    "cmd": "cat > Dockerfile <<'EOF'\nFROM python:3.12-slim\n\nWORKDIR /app\n\nCOPY app.py ./\nCOPY routes.py ./\n\nENV PORT=8080\nEXPOSE 8080\n\nCMD [\"python3\", \"app.py\"]\nEOF"
+  }
+}
