@@ -1,0 +1,18 @@
+{
+  "name": "malformed-config",
+  "stack": "config",
+  "difficulty": "medium",
+  "description": "The web service won't start after a config change — it's crashing on startup and is down. Get it serving again.",
+  "bugs": [
+    "config/settings.json has a trailing comma after the last key, so it is not valid JSON and json.loads raises JSONDecodeError",
+    "once the JSON parses, workers is set to 0, which fails the workers >= 1 startup check"
+  ],
+  "success_condition": { "cmd": "python3 app.py", "exit": 0 },
+  "files_expected_to_change": ["config/settings.json"],
+  "regression_check": null,
+  "correct_diagnosis": "config/settings.json was invalid JSON (a trailing comma after the last key) and set workers to 0; removing the trailing comma and setting a positive worker count lets the service start.",
+  "reference_fix": {
+    "description": "Make settings.json valid JSON and set a positive worker count.",
+    "cmd": "cat > config/settings.json <<'EOF'\n{\n  \"port\": 8080,\n  \"workers\": 4,\n  \"log_level\": \"info\"\n}\nEOF"
+  }
+}
