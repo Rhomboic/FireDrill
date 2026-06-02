@@ -64,3 +64,7 @@ done
 
 echo "==> launched. Watch the ASG scale out; results land in s3://${BUCKET}/runs/"
 echo "    logs: CloudWatch /ecs/firedrill"
+echo
+echo "    IMPORTANT: once the tasks finish, run ./orchestrator/rebuild_manifest.sh"
+echo "    to regenerate manifest.json — parallel jobs race on it, so rebuild it"
+echo "    authoritatively from S3 so every completed cell shows on the dashboard."
