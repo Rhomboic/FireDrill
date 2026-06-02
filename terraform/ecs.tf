@@ -57,7 +57,7 @@ resource "aws_ecs_task_definition" "job" {
   family                   = "${var.project}-job"
   requires_compatibilities = ["EC2"]
   network_mode             = "bridge"
-  cpu                      = 512
+  cpu                      = 256 # agent is I/O-bound (waits on LLM APIs); pack ~8/instance
   memory                   = 1024
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
@@ -83,7 +83,7 @@ resource "aws_ecs_task_definition" "ui_job" {
   family                   = "${var.project}-ui-job"
   requires_compatibilities = ["EC2"]
   network_mode             = "bridge"
-  cpu                      = 1024
+  cpu                      = 512  # I/O-bound like job; keep mem headroom for chromium
   memory                   = 2560 # chromium headroom
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
