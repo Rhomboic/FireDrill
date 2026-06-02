@@ -4,7 +4,7 @@ resource "aws_ecs_cluster" "firedrill" {
 
 resource "aws_cloudwatch_log_group" "firedrill" {
   name              = "/ecs/${var.project}"
-  retention_in_days = 7
+  retention_in_days = 14
 }
 
 # Capacity provider backed by the ASG, with managed scaling: ECS adds instances
