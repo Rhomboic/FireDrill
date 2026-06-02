@@ -24,12 +24,14 @@ T_CI=/tmp/fd_watch_ci.json
 T_SIG=/tmp/fd_watch_sig
 T_FRAME=/tmp/fd_watch_frame
 
-declare -A SEEN
+# Track seen task ARNs in a temp file (not a bash-4 associative array, so this
+# runs on macOS's stock bash 3.2 too).
+SEEN_FILE="$(mktemp "${TMPDIR:-/tmp}/fd_watch_seen.XXXXXX")"
 prev_sig="__init__"
 idle=0
 ever=0
 
-cleanup() { printf '\033[?25h\n'; }   # restore the cursor on exit
+cleanup() { printf '\033[?25h\n'; rm -f "$SEEN_FILE"; }   # restore cursor + clean up
 trap cleanup EXIT INT TERM
 printf '\033[?25l'                     # hide the cursor while we redraw
 
@@ -38,8 +40,8 @@ draw() { printf '\033[H\033[J'; cat "$T_FRAME"; }
 while :; do
   active="$(aws ecs list-tasks --cluster "$CLUSTER" --region "$REGION" --query 'taskArns' --output text 2>/dev/null)"
   [ "$active" = "None" ] && active=""
-  for a in $active; do SEEN["$a"]=1; done
-  all="${!SEEN[*]}"
+  for a in $active; do grep -Fxq "$a" "$SEEN_FILE" 2>/dev/null || printf '%s\n' "$a" >> "$SEEN_FILE"; done
+  all="$(cat "$SEEN_FILE")"
 
   # Nothing tracked yet — wait for the run to start.
   if [ -z "$all" ]; then
