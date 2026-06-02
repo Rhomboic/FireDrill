@@ -1,0 +1,7 @@
+[ci 2026-05-31 18:02] running test suite...
+[ci 2026-05-31 18:02] python3 tests/run_tests.py
+Traceback (most recent call last):
+  File "tests/run_tests.py", line 10, in <module>
+    assert compute_total([{"price": 10.0, "qty": 3}], 0.0) == 30.0, "qty should multiply"
+AssertionError: qty should multiply
+[ci 2026-05-31 18:02] BUILD FAILED — the suite was green before today's invoice change

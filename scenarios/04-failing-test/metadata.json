@@ -1,0 +1,26 @@
+{
+  "name": "failing-test",
+  "stack": "python",
+  "difficulty": "hard",
+  "description": "After a recent change to the billing service, order totals are coming out wrong and CI has gone red — the suite was green before today. Figure out what the change broke and fix it.",
+  "bugs": [
+    "a refactor of compute_total dropped the per-item quantity: it sums item['price'] instead of item['price'] * item['qty'], so multi-quantity orders undercount",
+    "compute_total does not round the taxed total to cents, so realistic amounts come out as long floats"
+  ],
+  "success_condition": { "cmd": "python3 tests/run_tests.py", "exit": 0 },
+  "protected_paths": ["tests"],
+  "regression_check": {
+    "cmd": "python3 -c \"import sys; sys.path.insert(0, '.'); from invoice import compute_total as f; v = f([{'price': 10.10, 'qty': 3}], 0.08); assert v == 32.72, v\"",
+    "exit": 0
+  },
+  "files_expected_to_change": ["invoice.py"],
+  "correct_diagnosis": "A recent refactor of compute_total dropped the per-item quantity (summing price instead of price*qty) and removed cent rounding, so order totals undercount and don't round; restoring item['price']*item['qty'] and rounding the taxed total to 2 decimals fixes it.",
+  "reference_fix": {
+    "description": "Restore the per-item quantity and round the taxed total to cents.",
+    "cmd": "cat > invoice.py <<'EOF'\n\"\"\"Invoice totals.\"\"\"\n\n\ndef compute_total(items, tax_rate):\n    \"\"\"Total for an invoice: the sum of the line items, plus tax.\n\n    items: list of {\"price\": float, \"qty\": int}\n    tax_rate: e.g. 0.08 for 8%\n    \"\"\"\n    subtotal = sum(item[\"price\"] * item[\"qty\"] for item in items)\n    return round(subtotal * (1 + tax_rate), 2)\nEOF"
+  },
+  "naive_fix": {
+    "description": "Trap bait: restore the quantity (passes the red test) but leave the missing rounding — breaks on realistic taxed amounts.",
+    "cmd": "python3 -c \"import pathlib; p=pathlib.Path('invoice.py'); s=p.read_text(); s=s.replace('sum(item[\\\"price\\\"] for item in items)', 'sum(item[\\\"price\\\"] * item[\\\"qty\\\"] for item in items)'); p.write_text(s)\""
+  }
+}
