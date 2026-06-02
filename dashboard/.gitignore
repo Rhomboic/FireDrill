@@ -1,0 +1,6 @@
+node_modules
+dist
+public/results
+preview.png
+_shot.cjs
+*.log
