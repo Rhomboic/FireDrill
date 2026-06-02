@@ -10,7 +10,8 @@ The ASG starts at 0 instances, so there's no cost until a job runs.
 
 | File | What |
 |---|---|
-| `state.tf` | S3 bucket for remote terraform state (versioned, encrypted) |
+| `bootstrap.sh` | one-time: creates the S3 remote-state bucket (run before `init`) |
+| `main.tf` | provider + **S3 remote-state backend** (versioned, encrypted, locked) |
 | `ecr.tf` | one repo, tags `base` (python/node/sql) and `ui` (Playwright) |
 | `s3.tf` | results bucket; `runs/*` is public-read for the dashboard |
 | `secrets.tf` | `firedrill/anthropic-api-key`, `firedrill/openai-api-key` |
@@ -21,13 +22,12 @@ The ASG starts at 0 instances, so there's no cost until a job runs.
 ## Deploy
 
 ```bash
-# 0. The remote-state backend bucket must exist before `init` can use it.
-#    Bootstrap it once with local state, then migrate:
-terraform init -backend=false
-terraform apply -target=aws_s3_bucket.tfstate    # creates firedrill-tfstate-<acct>
-terraform init -migrate-state                    # move state into S3
+# 0. Create the remote-state bucket once (the S3 backend needs it before `init`).
+#    Idempotent; Terraform never manages this bucket itself.
+./bootstrap.sh
 
-# 1. Stand everything up.
+# 1. Init against the S3 backend, then stand everything up.
+terraform init
 terraform apply
 
 # 2. Put the API keys in Secrets Manager (once).
