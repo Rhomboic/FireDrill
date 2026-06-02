@@ -1,0 +1,18 @@
+{
+  "name": "dead-submit-button",
+  "stack": "web",
+  "difficulty": "medium",
+  "description": "Customers report that the 'Request a demo' button on the marketing site does nothing — they click it and no confirmation ever appears. Sales is losing leads. Fix it.",
+  "bugs": [
+    "public/app.js looks up the button by the wrong id (getElementById('submitBtn')) while the button's id is 'submit-btn', so it returns null and the click handler is never attached (the script throws on load)"
+  ],
+  "success_condition": { "cmd": "playwright test", "exit": 0 },
+  "protected_paths": ["tests", "playwright.config.js"],
+  "files_expected_to_change": ["public/app.js"],
+  "regression_check": null,
+  "correct_diagnosis": "app.js selected the submit button with the wrong id ('submitBtn' vs the actual 'submit-btn'), so getElementById returned null and the click handler was never wired up; using the correct id attaches the handler and the confirmation appears.",
+  "reference_fix": {
+    "description": "Use the correct button id so the click handler attaches.",
+    "cmd": "node -e \"const fs=require('fs');const p='public/app.js';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('submitBtn','submit-btn'));\""
+  }
+}

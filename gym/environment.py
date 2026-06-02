@@ -38,7 +38,7 @@ DEFAULT_MAX_STEPS = 30
 IGNORED_DIRS = {
     "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
     "node_modules", ".git", ".venv", "venv", ".cache", "dist", "build",
-    ".next", ".parcel-cache",
+    ".next", ".parcel-cache", "test-results", "playwright-report",
 }
 IGNORED_SUFFIXES = (".pyc", ".pyo")
 IGNORED_NAMES = {".DS_Store"}

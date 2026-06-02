@@ -1,0 +1,39 @@
+# FireDrill UI job image — for the React/Playwright scenarios (05–07).
+#
+# Built on Microsoft's official Playwright image (Node + browsers preinstalled),
+# with Python added for the runner. Kept SEPARATE from the base image so the
+# Python/Node/SQL jobs don't carry ~1.5GB of browser they never use.
+
+FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+
+# Python for the firedrill runner (the Playwright base is Node-only).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 python3-venv \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/firedrill
+
+# Playwright test runner, version-matched to the base image's browsers, installed
+# at /opt/firedrill so a scenario workspace (under results/_workspaces/) resolves
+# it by walking up node_modules. Browsers ship in the base (PLAYWRIGHT_BROWSERS_PATH).
+RUN npm install @playwright/test@1.49.0
+
+# Resolve @playwright/test and the `playwright` CLI from anywhere (scenario
+# workspaces live in temp dirs, not under /opt/firedrill, so upward node_modules
+# resolution alone isn't enough — NODE_PATH + the .bin on PATH fixes it).
+ENV NODE_PATH="/opt/firedrill/node_modules"
+
+# Python deps in a venv (the base image's system Python is externally managed).
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/firedrill/node_modules/.bin:/opt/venv/bin:${PATH}"
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY gym/ gym/
+COPY agent/ agent/
+COPY eval/ eval/
+COPY runner/ runner/
+COPY scenarios/ scenarios/
+RUN mkdir -p results
+
+ENTRYPOINT ["python3", "runner/run_job.py"]

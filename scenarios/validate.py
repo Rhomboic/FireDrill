@@ -17,6 +17,7 @@ Usage:
 """
 
 import json
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -25,14 +26,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root on 
 from gym import FireDrillEnv  # noqa: E402
 
 SCENARIOS_DIR = Path(__file__).resolve().parent
+SKIP = "SKIP"  # sentinel: scenario's runtime isn't available here (e.g. playwright)
 
 
 def validate_scenario(scenario_dir: Path) -> list[str]:
-    """Return a list of failure messages; empty means the scenario passed."""
+    """Return a list of failure messages; empty means the scenario passed.
+    A single SKIP entry means the verifier's runtime isn't available locally."""
     failures: list[str] = []
     fix = None
     with tempfile.TemporaryDirectory() as tmp:
         env = FireDrillEnv(scenario_dir, Path(tmp) / "workspace")
+
+        # Skip if the success-condition binary isn't installed here (UI scenarios
+        # need playwright; validated inside the firedrill-ui image instead).
+        cmd = env.metadata.get("success_condition", {}).get("cmd", "")
+        binary = cmd.split()[0] if cmd else ""
+        if binary and shutil.which(binary) is None:
+            return [f"{SKIP}: needs '{binary}'"]
+
         fix = env.metadata.get("reference_fix", {})
         fix_cmd = fix.get("cmd")
 
@@ -108,7 +119,9 @@ def main() -> int:
             all_ok = False
             continue
         failures = validate_scenario(scenario_dir)
-        if failures:
+        if failures and failures[0].startswith(SKIP):
+            print(f"⊘ {scenario_dir.name}  (skipped — {failures[0].split(': ', 1)[1]})")
+        elif failures:
             all_ok = False
             print(f"✗ {scenario_dir.name}")
             for f in failures:
