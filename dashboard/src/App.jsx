@@ -20,7 +20,7 @@ export default function App() {
       .catch(() => setStatus("error"));
   }, []);
 
-  const { models, scenarios, cell } = useMemo(() => {
+  const { models, scenarios, cell, rewardDims } = useMemo(() => {
     const present = new Set(jobs.map((j) => j._model));
     const models = [
       ...MODEL_ORDER.filter((m) => present.has(m)),
@@ -29,7 +29,14 @@ export default function App() {
     const scenarios = [...new Set(jobs.map((j) => j._scenario))].sort();
     const cell = {};
     for (const j of jobs) cell[`${j._scenario}|${j._model}`] = j;
-    return { models, scenarios, cell };
+    // Reward dimensions actually present in the results: the quality scores
+    // (every key in `scores` except the `composite` aggregate) plus cost as its
+    // own axis. Derived from the data so the chip can't drift from reality.
+    const sampleScores = jobs.find((j) => j.scores)?.scores ?? {};
+    const qualityDims = Object.keys(sampleScores).filter((k) => k !== "composite").length;
+    const hasCost = jobs.some((j) => j.cost?.cost_usd != null);
+    const rewardDims = qualityDims + (hasCost ? 1 : 0);
+    return { models, scenarios, cell, rewardDims };
   }, [jobs]);
 
   const ready = status === "ready";
@@ -53,7 +60,7 @@ export default function App() {
             <div className="chips">
               <span className="chip"><strong>{scenarios.length}</strong> scenarios</span>
               <span className="chip"><strong>{models.length}</strong> models</span>
-              <span className="chip"><strong>4</strong> reward dims</span>
+              <span className="chip"><strong>{rewardDims}</strong> reward dims</span>
               <span className="chip"><strong>{jobs.length}</strong> jobs</span>
             </div>
           )}
