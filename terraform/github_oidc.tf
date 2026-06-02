@@ -59,6 +59,11 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
           "ssm:GetParameter",
           "ssm:GetParameters",
           "sts:GetCallerIdentity",
+          # Dashboard delivery stack (dashboard_s3 / cloudfront / acm / route53).
+          # route53:* lets us write our records into the existing chess-owned zone.
+          "cloudfront:*",
+          "acm:*",
+          "route53:*",
         ]
         Resource = "*"
       },
@@ -75,4 +80,56 @@ resource "aws_iam_role_policy" "github_actions_terraform" {
 output "github_actions_terraform_role_arn" {
   description = "Add this as the AWS_TF_ROLE_ARN variable in the GitHub repo settings"
   value       = aws_iam_role.github_actions_terraform.arn
+}
+
+# ── Dashboard deploy role ────────────────────────────────────────────────────
+# Assumed by the deploy-dashboard workflow only. Far narrower than the Terraform
+# role: it can write the dashboard bucket and invalidate CloudFront, nothing more.
+resource "aws_iam_role" "github_actions_deploy" {
+  name = "${var.project}-github-actions-deploy"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+        }
+        StringLike = {
+          "token.actions.githubusercontent.com:sub" = "repo:Rhomboic/FireDrill:*"
+        }
+      }
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "github_actions_deploy" {
+  name = "${var.project}-github-actions-deploy-policy"
+  role = aws_iam_role.github_actions_deploy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "SyncDashboardBucket"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
+        Resource = [aws_s3_bucket.dashboard.arn, "${aws_s3_bucket.dashboard.arn}/*"]
+      },
+      {
+        Sid      = "InvalidateCdn"
+        Effect   = "Allow"
+        Action   = ["cloudfront:CreateInvalidation", "cloudfront:ListDistributions"]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+output "github_actions_deploy_role_arn" {
+  description = "Add this as the AWS_DEPLOY_ROLE_ARN variable in the GitHub repo settings"
+  value       = aws_iam_role.github_actions_deploy.arn
 }
