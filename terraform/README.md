@@ -45,5 +45,23 @@ docker push "$ECR:base" && docker push "$ECR:ui"
 Running the `scenario × model` matrix as ECS tasks (SCENARIO/MODEL as container
 overrides) is driven by `orchestrator/` — added next.
 
+## CI (GitHub Actions)
+
+`.github/workflows/terraform.yml` runs **`terraform plan` on every PR** that
+touches `terraform/` (and comments the plan), and **`terraform apply` on merge to
+main** — authenticating to AWS via **GitHub OIDC** (no stored keys).
+
+The CI role (`github_oidc.tf`) is itself a Terraform resource, so bootstrap once:
+
+```bash
+terraform apply                                            # creates the CI role
+terraform output -raw github_actions_terraform_role_arn    # copy the ARN
+# In the GitHub repo: Settings → Secrets and variables → Actions → Variables,
+# add AWS_TF_ROLE_ARN = <that ARN>.
+```
+
+After that, plan/apply run in CI automatically. The OIDC provider is referenced
+(not created) since the PuzzleChess infra already created it in this account.
+
 > The backend `bucket` in `main.tf` hardcodes the AWS account id. Update it if
 > you deploy to a different account.
