@@ -1,0 +1,9 @@
+{
+  "name": "search-pagination",
+  "version": "1.0.0",
+  "description": "Pagination helper for the search API",
+  "main": "src/pagination.js",
+  "scripts": {
+    "test": "node tests/run.js"
+  }
+}

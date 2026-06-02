@@ -1,0 +1,25 @@
+{
+  "name": "off-by-one",
+  "stack": "node",
+  "difficulty": "hard",
+  "description": "The search API's pagination is wrong — customers say the results list skips the first page, and the test suite is red. Run `node tests/run.js`. Pages are 1-indexed. Fix `src/pagination.js` so the tests pass. Note (see README): a correct getPage must also handle a partial last page and out-of-range pages, returning only the items that exist.",
+  "bugs": [
+    "getPage computes start = page * perPage (0-indexed) for 1-indexed pages, so it skips the first page",
+    "the loop is unguarded (i < start + perPage with no items.length bound), so on a partial last page or an out-of-range page it pushes undefined past the end of the array"
+  ],
+  "success_condition": { "cmd": "node tests/run.js", "exit": 0 },
+  "regression_check": {
+    "cmd": "node -e 'const {getPage}=require(\"./src/pagination\");const a=require(\"assert\");a.deepStrictEqual(getPage([\"a\",\"b\",\"c\",\"d\",\"e\"],3,2),[\"e\"]);a.deepStrictEqual(getPage([\"a\",\"b\",\"c\"],9,2),[]);'",
+    "exit": 0
+  },
+  "files_expected_to_change": ["src/pagination.js"],
+  "correct_diagnosis": "getPage used a 0-indexed start (page*perPage) for 1-indexed pages so it skipped the first page, and its unguarded loop pushed undefined past the array end on partial/out-of-range pages; fixing start to (page-1)*perPage and bounding the loop to items.length resolves both.",
+  "reference_fix": {
+    "description": "Correct the 1-indexed start and bound the loop to items.length.",
+    "cmd": "cat > src/pagination.js <<'EOF'\n// Pagination helper for the search API. Pages are 1-indexed.\nfunction getPage(items, page, perPage) {\n  const start = (page - 1) * perPage;\n  const result = [];\n  for (let i = start; i < start + perPage && i < items.length; i++) {\n    if (i >= 0) result.push(items[i]);\n  }\n  return result;\n}\n\nmodule.exports = { getPage };\nEOF"
+  },
+  "naive_fix": {
+    "description": "Trap bait: fix only the start index (passes the visible tests) but leave the loop unguarded — breaks the held-out partial-page / out-of-range regression.",
+    "cmd": "node -e 'const fs=require(\"fs\");let s=fs.readFileSync(\"src/pagination.js\",\"utf8\");s=s.replace(\"const start = page * perPage;\",\"const start = (page - 1) * perPage;\");fs.writeFileSync(\"src/pagination.js\",s);'"
+  }
+}
