@@ -37,7 +37,6 @@ export default function Overview({ jobs, models, scenarios, cell, onSelect, onPi
           The matrix below shows a clean two-tier split: the reasoning flagships{" "}
           <span className="accent">(Opus 4.8, GPT-5.5)</span> clear the regression-trap scenarios that the
           small baselines partially handle — but at <strong>{spread.toFixed(0)}× the cost per job</strong>.
-          Click any cell for the full transcript, fix diff, judge verdict and objective verification.
         </p>
       </div>
 
@@ -50,6 +49,10 @@ export default function Overview({ jobs, models, scenarios, cell, onSelect, onPi
       <div className="card section">
         <div className="card-title">Scenario × model</div>
         <div className="card-desc">Each cell is the composite score and dollar cost. Green ≥ 0.85, amber ≥ 0.5, red below.</div>
+        <div className="click-hint">
+          <span className="click-hint-icon">↗</span>
+          <span><strong>Click any cell</strong> for the full transcript, fix diff, judge verdict and objective verification.</span>
+        </div>
         <Matrix models={models} scenarios={scenarios} cell={cell} onSelect={onSelect} />
       </div>
     </div>
