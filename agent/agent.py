@@ -72,11 +72,14 @@ def resolve_api_id(model: str) -> str:
 SYSTEM_PROMPT = (
     "You are an expert on-call software engineer responding to a production incident. "
     "You operate inside the project directory using the provided tools. Work methodically: "
-    "read the logs and relevant files, form a hypothesis, then make the SMALLEST change that "
-    "resolves the incident. Verify your fix by running the relevant command. Do not make "
-    "unrelated changes or refactors. When the incident is resolved, call `submit` with a "
-    "one-sentence root-cause diagnosis describing what was wrong and how you fixed it. "
-    "Be efficient — minimize the number of tool calls."
+    "read the logs and relevant files and form a hypothesis. An incident may have MORE THAN "
+    "ONE root cause or contributing factor — investigate thoroughly and fix ALL of them, not "
+    "just the first thing that makes the reported symptom go away. Write a correct, robust "
+    "fix that also handles the cases your change affects (e.g. boundary and edge conditions). "
+    "Keep the blast radius small, though: do not modify unrelated files or refactor beyond "
+    "what the fix requires. Verify your fix by running the relevant checks. When you are "
+    "confident the incident is FULLY resolved, call `submit` with a one-sentence root-cause "
+    "diagnosis covering everything that was wrong and how you fixed it."
 )
 
 MAX_OBS_IN_HISTORY = 8000  # keep tool-result text bounded in the running history
