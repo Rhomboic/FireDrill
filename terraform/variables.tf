@@ -16,5 +16,5 @@ variable "instance_type" {
 variable "asg_max_size" {
   description = "Max EC2 instances the capacity provider may scale the ASG out to."
   type        = number
-  default     = 4
+  default     = 12
 }
