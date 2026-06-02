@@ -4,6 +4,8 @@ import { MODEL_ORDER, modelLabel } from "./meta.js";
 import Overview from "./components/Overview.jsx";
 import ModelTab from "./components/ModelTab.jsx";
 import Drawer from "./components/Drawer.jsx";
+import Splash from "./components/Splash.jsx";
+import logo from "./assets/firedrill_logo.png";
 
 export default function App() {
   const [jobs, setJobs] = useState([]);
@@ -40,7 +42,7 @@ export default function App() {
         <div className="container hero-inner">
           <div>
             <div className="hero-title">
-              <span className="hero-logo">🔥</span>
+              <img className="hero-logo" src={logo} alt="" />
               <h1>Fire<span>Drill</span></h1>
             </div>
             <p>
@@ -101,11 +103,19 @@ export default function App() {
         )}
 
         <footer>
-          Results read live from S3 ·{" "}
-          <a href="https://github.com/Rhomboic/FireDrill">github.com/Rhomboic/FireDrill</a>
+          <div className="footer-inner">
+            <span className="footer-left">FireDrill Agent Gym · 2026</span>
+            <span className="footer-right">
+              Built by{" "}
+              <a href="https://adamissah.com" target="_blank" rel="noreferrer">
+                Adam Issah
+              </a>
+            </span>
+          </div>
         </footer>
       </div>
 
+      <Splash dataReady={status !== "loading"} />
       {selected && <Drawer job={selected} onClose={() => setSelected(null)} />}
     </>
   );
