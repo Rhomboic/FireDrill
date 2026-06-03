@@ -18,9 +18,22 @@ export const modelVendor = (m) => (MODEL_META[m]?.vendor ?? "claude");
 export const vendorBadge = (m) =>
   modelVendor(m) === "openai" ? "badge badge-openai" : "badge badge-claude";
 
-// Composite → colour band.
+// Composite → colour band (legacy, discrete).
 export const scoreClass = (c) =>
   c >= 0.85 ? "s-good" : c >= 0.5 ? "s-mid" : "s-bad";
+
+// Composite → continuous colour. 1.0 = green, ≤0.5 = red, and a smooth
+// red → orange → yellow → green hue gradient over (0.5, 1.0). Returns
+// { fg, bg } for the cell's text and (translucent) background.
+export const scoreColor = (c) => {
+  const t = Math.max(0, Math.min(1, Number(c ?? 0)));
+  const u = Math.max(0, Math.min(1, (t - 0.5) / 0.5)); // 0 at ≤0.5, 1 at 1.0
+  const hue = u * 140; // 0 = red → 140 = green
+  return {
+    fg: `hsl(${hue}, 80%, 62%)`,
+    bg: `hsla(${hue}, 70%, 45%, 0.20)`,
+  };
+};
 
 export const money = (n) => "$" + Number(n ?? 0).toFixed(4);
 export const pct = (n) => (n * 100).toFixed(0) + "%";
