@@ -40,6 +40,46 @@ Ten hand-authored **local projects** (not real repos — file trees baked into c
 | 9 | bad-dockerfile | Docker | wrong port / missing COPY |
 | 10 | wrong-join | SQL | JOIN/filter returns wrong aggregate |
 
+Each scenario also plants a **regression trap**: a second, subtler, production-shaped bug where the obvious *symptomatic* fix passes the visible success condition but fails a **held-out `regression_check`**. That trap is the lever that separates a careful reasoner from a hasty one — see Results.
+
+## Results — does the gym discriminate?
+
+A gym is only useful if it separates policies. The first matrix (one well-signposted bug per scenario) was **quality-saturated**: every model resolved 8/10 and the composite spread across all four models was just **0.024** — no signal. Adding the regression trap to every scenario **quadrupled** the spread to **0.100** and produced a clean two-tier split.
+
+**Most recent full run** — 10 scenarios × 4 models, reasoning flagships at high effort:
+
+| Model | Composite | Resolution | Blast radius | Diagnosis | Regression pass | $ / job |
+|---|---|---|---|---|---|---|
+| **Claude Opus 4.8** | **0.98** | 100% | 0.90 | 0.98 | 9/10 | $0.096 |
+| **GPT-5.5** | **0.97** | 100% | 0.90 | 0.96 | 9/10 | $0.108 |
+| Claude Haiku 4.5 | 0.90 | 100% | 0.60 | 0.88 | 6/10 | $0.037 |
+| GPT-4.1 mini | 0.88 | 100% | 0.60 | 0.78 | 6/10 | $0.0055 |
+
+Three things the data shows:
+
+1. **Resolution alone is blind.** Every model — including the cheapest — makes the visible success condition pass, so **resolution is 100% across the board**. The capability gap is invisible to pass/fail; it only surfaces in the held-out regression and blast radius. This is the entire argument for a multi-dimensional reward.
+2. **The trap discriminates *through* blast radius.** A failed `regression_check` hard-zeros the blast-radius dimension (a fix that breaks a held-out check is maximal collateral damage), costing the full 0.2 composite weight. Flagships pass **9/10** regressions, small models **6/10** — which is exactly the blast gap (0.90 vs 0.60) and the composite gap.
+3. **The flagships now *earn* their premium.** Before the trap they cost ~17–44× more for identical scores; now they cost ~17× more **and** pass the traps the cheap models fail. If you only need the surface fix, GPT-4.1-mini is the value pick at **$0.0055/job**; when fix *correctness* matters, the flagships are worth it.
+
+**Which traps fired** (composite per model; `*` = took the bait — failed the held-out regression):
+
+| Scenario | Opus | GPT-5.5 | Haiku | 4.1-mini | the trap |
+|---|---|---|---|---|---|
+| 08 malformed-config | 1.00 | 1.00 | 0.72\* | 0.72\* | config-precedence merge (defaults shadow operator settings) |
+| 01 payments-service-down | 1.00 | 1.00 | 0.76\* | 0.76\* | retry helper gives up one attempt early |
+| 03 off-by-one | 1.00 | 0.96 | 0.76\* | 0.76\* | unguarded loop on partial / out-of-range pages |
+| 02 silent-data-bug | 0.76\* | 0.76\* | 0.76\* | 0.76\* | float money vs Decimal |
+| 04 failing-test | 1.00 | 1.00 | 0.96 | 0.92 | empty-order edge |
+| 05 dead-submit-button | 1.00 | 1.00 | 1.00 | 0.92 | inverted validation |
+| 06 layout-regression | 1.00 | 1.00 | 1.00 | 0.92 | holds on mobile viewport |
+| 07 spinner-forever | 1.00 | 1.00 | 1.00 | 1.00 | paginated-envelope response shape |
+| 09 bad-dockerfile | 1.00 | 1.00 | 1.00 | 1.00 | shell-form CMD swallows SIGTERM |
+| 10 wrong-join | 1.00 | 1.00 | 1.00 | 1.00 | one-to-many JOIN fan-out |
+
+**6 of 10 scenarios now discriminate, up from 2** — and **three traps (08, 01, 03) fire on the small models only**, the ideal flagship-vs-baseline split.
+
+**Honest calibration note.** A trap only discriminates in the narrow band where flagships catch it and small models don't, and four scenarios miss that band: **02 is too hard** (the float-vs-Decimal edge fools all four → everyone 0.76), and **07 / 09 / 10 are too easy** (every model handled the response-shape, SIGTERM, and JOIN-fan-out edges → all 1.00). The 04/05/06 dips come from the diagnosis judge and blast radius catching the *weakest* model, not from the trap firing. Tightening 02 (soften) and 07/09/10 (sharpen) is the next iteration — and the only way to find that band is empirically, by running the matrix and reading exactly this table. That tuning loop *is* the work of building a gym.
+
 ## Layout
 
 ```
@@ -97,6 +137,9 @@ Each job is a self-contained container — one `(scenario × model)` episode tha
 ## Status
 
 Live. Ten scenarios across Python, Node, React/Playwright, config, Docker, and
-SQL, each gated by an objective verifier (broken → fixable → clean). The full
-`scenario × model` matrix runs on ECS-on-EC2 autoscaling across four models, and
-results render at **[firedrill.adamissah.com](https://firedrill.adamissah.com)**.
+SQL, each gated by an objective verifier (broken → fixable → clean) and a
+held-out regression trap. The full `scenario × model` matrix runs on ECS-on-EC2
+autoscaling across four models; the latest run shows a clean two-tier capability
+split (composite spread 0.100, reasoning flagships ~0.97 vs small baselines
+~0.89 — see Results). Results render at
+**[firedrill.adamissah.com](https://firedrill.adamissah.com)**.
