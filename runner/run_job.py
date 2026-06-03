@@ -32,7 +32,7 @@ from dotenv import load_dotenv  # noqa: E402
 from gym import FireDrillEnv  # noqa: E402
 from agent.agent import run_episode, ALL_MODELS  # noqa: E402
 from eval.judge import score_diagnosis  # noqa: E402
-from eval.eval import score_episode  # noqa: E402
+from eval.eval import score_episode, _cost_score  # noqa: E402
 
 SCENARIOS_DIR = REPO_ROOT / "scenarios"
 
@@ -118,6 +118,17 @@ def _aggregate_runs(per_runs: list[dict]) -> dict:
             agg["cost"][k] = round(avg("cost", k), 6)
     if isinstance(agg.get("efficiency", {}).get("steps"), (int, float)):
         agg["efficiency"]["steps"] = round(avg("efficiency", "steps"), 1)
+
+    # cost_score is non-linear — k/(k+cost) — so averaging the per-run scores
+    # (mean(f(cost))) ≠ scoring the average cost (f(mean(cost))). Recompute it
+    # from the averaged cost so it stays consistent with the shown cost_usd.
+    if "cost_usd" in agg.get("cost", {}):
+        agg["cost"]["cost_score"] = _cost_score(agg["cost"]["cost_usd"])
+    # cost_usd stays the mean PER RUN (the per-cell, cost-vs-capability value);
+    # cost_usd_total is the actual money spent across all N runs (what the
+    # dashboard's Total spend should sum to).
+    agg["cost"]["cost_usd_total"] = round(
+        sum(p.get("cost", {}).get("cost_usd", 0) for p in per_runs), 6)
 
     agg["runs"] = n
     agg["per_run"] = [{

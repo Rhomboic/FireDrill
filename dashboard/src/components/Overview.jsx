@@ -9,7 +9,9 @@ export default function Overview({ jobs, models, scenarios, cell, onSelect, onPi
   const stats = models.map((m) => modelStats(jobs, m));
   const best = [...stats].sort((a, b) => b.composite - a.composite)[0];
   const cheapest = [...stats].sort((a, b) => a.avgCost - b.avgCost)[0];
-  const totalSpend = jobs.reduce((a, j) => a + (j.cost?.cost_usd ?? 0), 0);
+  // actual money spent across all repeat runs (cost_usd is the mean per run)
+  const totalSpend = jobs.reduce((a, j) => a + (j.cost?.cost_usd_total ?? j.cost?.cost_usd ?? 0), 0);
+  const maxRuns = jobs.reduce((m, j) => Math.max(m, j.runs ?? 1), 1);
   const resolved = jobs.filter((j) => j.scores.resolution).length;
   const spread = best && cheapest ? best.avgCost / Math.max(cheapest.avgCost, 1e-9) : 0;
 
@@ -17,7 +19,7 @@ export default function Overview({ jobs, models, scenarios, cell, onSelect, onPi
     { label: "Jobs run", value: jobs.length, tone: "plain", sub: `${scenarios.length} scenarios × ${models.length} models` },
     { label: "Incidents resolved", value: `${((resolved / jobs.length) * 100).toFixed(0)}%`, tone: "green", sub: `${resolved} / ${jobs.length} success conditions met` },
     { label: "Avg composite", value: mean(jobs.map((j) => j.scores.composite)).toFixed(2), sub: "0.6 resolution + 0.2 blast + 0.2 diagnosis" },
-    { label: "Total spend", value: money(totalSpend), tone: "accent", sub: `${spread.toFixed(0)}× cost spread, cheapest → priciest` },
+    { label: "Total spend", value: money(totalSpend), tone: "accent", sub: maxRuns > 1 ? `actual, across ${maxRuns} runs/cell · ${spread.toFixed(0)}× spread per run` : `${spread.toFixed(0)}× cost spread, cheapest → priciest` },
   ];
 
   return (
