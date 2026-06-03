@@ -17,12 +17,23 @@ from runner.run_job import run_job  # noqa: E402
 
 FIXED_ENV = ("# Payments service configuration\nPORT=8080\nMAX_RETRIES=3\n"
              "STRIPE_API_KEY=sk_test_51FireDrillExampleKeyDoNotUse\nENV=production\n")
+
+# The agent's full fix: repair config/.env AND correct the off-by-one in
+# call_with_retries (the held-out regression trap) so the fix scores as clean.
+SCEN_DIR = (Path(__file__).resolve().parent.parent
+            / "scenarios" / "01-payments-service-down" / "filesystem")
+FIXED_PAYMENTS = (SCEN_DIR / "app" / "payments.py").read_text().replace(
+    "for attempt in range(1, attempts):", "for attempt in range(1, attempts + 1):")
+assert "range(1, attempts + 1)" in FIXED_PAYMENTS, "off-by-one line not found to patch"
+
 SCRIPT = [
     ("read_logs", {}),
     ("write_file", {"path": "config/.env", "content": FIXED_ENV}),
+    ("write_file", {"path": "app/payments.py", "content": FIXED_PAYMENTS}),
     ("run_command", {"command": "python3 main.py"}),
     ("submit", {"diagnosis": "config/.env lacked STRIPE_API_KEY and had a bad "
-                "MAX_RETRIES; set both so the service boots."}),
+                "MAX_RETRIES; set both so the service boots. Also fixed the "
+                "off-by-one in call_with_retries so it uses the full retry budget."}),
 ]
 
 
