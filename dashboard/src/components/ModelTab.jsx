@@ -2,7 +2,7 @@ import React from "react";
 import StatGrid from "./StatGrid.jsx";
 import Bars from "./Bars.jsx";
 import { modelLabel, vendorBadge, MODEL_META, money, scoreColor } from "../meta.js";
-import { modelStats, modelBlurb } from "../stats.js";
+import { modelStats, modelAnalysis } from "../stats.js";
 
 export default function ModelTab({ model, jobs, allModels, onSelect }) {
   const s = modelStats(jobs, model);
@@ -38,8 +38,8 @@ export default function ModelTab({ model, jobs, allModels, onSelect }) {
       <StatGrid stats={stats} />
 
       <div className="card section analysis">
-        <div className="card-title">Profile</div>
-        <p>{modelBlurb(s, all)}</p>
+        <div className="card-title">Analysis</div>
+        <p>{modelAnalysis(s, all)}</p>
       </div>
 
       <div className="card section">
