@@ -1,0 +1,33 @@
+{
+  "name": "currency-rounding",
+  "stack": "python",
+  "difficulty": "hard",
+  "description": "Customers on the billing service are complaining that when a bill is split evenly between several people, the shares don't add up to the total: sometimes a cent goes missing, sometimes there's a cent too many. Finance's reconciliation job is now flagging these invoices. Dig through the service, find why split bills don't reconcile, and fix it. The project has engineering conventions (see CONVENTIONS.md) that a good fix is expected to follow.",
+  "bugs": [
+    "app.services.billing.split_bill delegates to the deprecated float helper app.legacy.pricing.even_split, which divides in float dollars and rounds each share independently, dropping (or duplicating) the leftover cents so the shares do not sum back to the total",
+    "the correct fix must both reconcile (shares sum exactly to the total) AND stay fair (shares differ by at most one cent); CONVENTIONS.md points to app.core.money.Money.allocate, which does both via largest-remainder distribution. A fix that only reconciles - e.g. dumping the whole leftover onto the first share - passes the visible check but is unfair when more than one cent is left over"
+  ],
+  "success_condition": {
+    "cmd": "python3 tests/run_tests.py",
+    "exit": 0
+  },
+  "protected_paths": [
+    "tests"
+  ],
+  "files_expected_to_change": [
+    "app/services/billing.py"
+  ],
+  "regression_check": {
+    "cmd": "python3 -c \"import sys; sys.path.insert(0, '.'); from app.services.billing import split_bill; s = split_bill(10400, 3); assert sum(s) == 10400, ('does not reconcile', s); assert max(s) - min(s) <= 1, ('reconciles but split is unfair', s)\"",
+    "exit": 0
+  },
+  "correct_diagnosis": "split_bill delegated to app.legacy.pricing.even_split, a deprecated helper that computes the split in float dollars and rounds each share the same way, so the remainder cents are dropped and the shares don't sum to the invoice total (e.g. 10000c / 3 -> [3333,3333,3333] = 9999). The fix is to divide the amount with app.core.money.Money.allocate (integer cents, largest-remainder distribution) as CONVENTIONS.md requires, so the shares always reconcile to the total and the leftover cents are spread out fairly (shares differ by at most one cent) - e.g. 10400c / 3 -> [3467,3467,3466]. Note that merely making the shares reconcile is not enough: dumping the entire remainder onto one share reconciles but is unfair (10400c / 3 -> [3468,3466,3466]), which is the deeper failure mode the fair-split requirement guards against.",
+  "reference_fix": {
+    "description": "Replace the deprecated legacy float splitter with app.core.money.Money.allocate, which reconciles to the cent and distributes the leftover cents fairly. Only billing.py changes.",
+    "cmd": "cat > app/services/billing.py <<'EOF'\nfrom app.core.money import Money\n\n\ndef split_bill(total_cents: int, n: int) -> list[int]:\n    return [m.cents for m in Money(total_cents).allocate([1] * n)]\nEOF"
+  },
+  "naive_fix": {
+    "description": "Trap bait: the quick 'make it add up' patch - floor-divide and dump the entire leftover onto the first share. This reconciles, so it passes the visible test (which only exercises a one-cent remainder), but it is unfair whenever more than one cent is left over, failing the held-out regression where 10400c / 3 must split as [.,.,.] with shares within one cent of each other.",
+    "cmd": "cat > app/services/billing.py <<'EOF'\ndef split_bill(total_cents: int, n: int) -> list[int]:\n    share = total_cents // n\n    shares = [share] * n\n    shares[0] += total_cents - share * n\n    return shares\nEOF"
+  }
+}
