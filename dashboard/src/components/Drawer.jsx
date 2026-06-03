@@ -1,5 +1,5 @@
 import React from "react";
-import { modelLabel, money } from "../meta.js";
+import { modelLabel, money, scoreClass } from "../meta.js";
 
 function Diff({ text }) {
   return (
@@ -42,8 +42,12 @@ export default function Drawer({ job, onClose }) {
             <div className="k">composite</div>
           </div>
           <div className="dim">
-            <div className="v">{s.resolution ? "✓" : "✗"}</div>
-            <div className="k">resolution</div>
+            <div className="v">
+              {job.runs > 1
+                ? `${Math.round(s.resolution * job.runs)}/${job.runs}`
+                : s.resolution ? "✓" : "✗"}
+            </div>
+            <div className="k">resolved</div>
           </div>
           <div className="dim">
             <div className="v">{s.blast_radius.toFixed(2)}</div>
@@ -58,6 +62,22 @@ export default function Drawer({ job, onClose }) {
             <div className="k">cost · {job.efficiency?.steps ?? "?"} steps</div>
           </div>
         </div>
+
+        {job.runs > 1 && Array.isArray(job.per_run) && (
+          <div className="block">
+            <h4>Averaged over {job.runs} runs</h4>
+            <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              composite per run:
+              {job.per_run.map((r, i) => (
+                <span key={i} className={scoreClass(r.composite)}
+                      style={{ padding: "1px 7px", borderRadius: 4, fontWeight: 600 }}>
+                  {r.composite.toFixed(2)}
+                </span>
+              ))}
+              <span>· detail below is from run {job.runs}</span>
+            </p>
+          </div>
+        )}
 
         <div className="block">
           <h4>Diagnosis (judge {diag.score}/5)</h4>

@@ -87,13 +87,59 @@ def _update_manifest(s3, bucket: str, prefix: str, model: str, scenario: str) ->
     print(f"  manifest updated: {model} -> {data[model]}")
 
 
+# ── averaging across repeat runs ─────────────────────────────────────────────
+
+def _aggregate_runs(per_runs: list[dict]) -> dict:
+    """Average the quality scores + cost across N repeat runs into one payload.
+
+    Single runs are noisy (a model's fix quality on a trap varies run to run), so
+    the cloud matrix runs each cell N times. This keeps the LAST run's detail
+    (transcript, diff, diagnosis, verification) for the drawer, replaces `scores`
+    and `cost` with the per-run averages, and adds a `per_run` array so variance
+    is visible. Schema stays backward-compatible — the dashboard reads the
+    averaged `scores`/`cost` directly, so a cell value is now the average.
+    """
+    n = len(per_runs)
+    agg = json.loads(json.dumps(per_runs[-1]))  # deep copy of the representative run
+
+    def avg(*keys):
+        total = 0.0
+        for p in per_runs:
+            d: Any = p
+            for k in keys:
+                d = d.get(k) if isinstance(d, dict) else None
+            total += d if isinstance(d, (int, float)) else 0
+        return total / n
+
+    for k in list(agg.get("scores", {})):
+        agg["scores"][k] = round(avg("scores", k), 4)
+    for k, v in list(agg.get("cost", {}).items()):
+        if isinstance(v, (int, float)):
+            agg["cost"][k] = round(avg("cost", k), 6)
+    if isinstance(agg.get("efficiency", {}).get("steps"), (int, float)):
+        agg["efficiency"]["steps"] = round(avg("efficiency", "steps"), 1)
+
+    agg["runs"] = n
+    agg["per_run"] = [{
+        "composite": p["scores"]["composite"],
+        "resolution": p["scores"]["resolution"],
+        "blast_radius": p["scores"]["blast_radius"],
+        "diagnosis": p["scores"]["diagnosis"],
+        "regression_passed": p.get("regression_passed"),
+        "cost_usd": p.get("cost", {}).get("cost_usd"),
+        "steps": p.get("efficiency", {}).get("steps"),
+    } for p in per_runs]
+    return agg
+
+
 # ── the job ─────────────────────────────────────────────────────────────────
 
 def run_job(scenario: str, model: str, *, max_steps: Optional[int] = None,
             workspace: Optional[str] = None, out_dir: str = "results",
-            do_judge: bool = True, s3: bool = False,
+            do_judge: bool = True, s3: bool = False, repeats: int = 1,
             agent_client: Any = None, judge_client: Any = None) -> dict:
-    """Run one job and return the scored payload. Clients are injectable for tests."""
+    """Run one job (optionally `repeats` times, averaged) and return the payload.
+    Clients are injectable for tests."""
     scenario_dir = SCENARIOS_DIR / scenario
     if not (scenario_dir / "metadata.json").is_file():
         raise FileNotFoundError(f"no scenario at {scenario_dir}")
@@ -102,27 +148,34 @@ def run_job(scenario: str, model: str, *, max_steps: Optional[int] = None,
     ws = Path(workspace) if workspace else (REPO_ROOT / out_dir / "_workspaces"
                                             / f"{model}__{scenario}")
     env = FireDrillEnv(scenario_dir, ws, max_steps=max_steps or 30)
+    repeats = max(1, repeats)
 
-    print(f"\n{'='*64}\nFireDrill job: {scenario}  ×  {model}\n{'='*64}")
-    episode = run_episode(env, model, client=agent_client)
-    print(f"  policy: {episode.stopped_reason} in {episode.steps} steps")
-    if episode.error:
-        print(f"  policy error: {episode.error}")
+    suffix = f"  (×{repeats} runs, averaged)" if repeats > 1 else ""
+    print(f"\n{'='*64}\nFireDrill job: {scenario}  ×  {model}{suffix}\n{'='*64}")
 
-    reward = env.verify()
-    print(f"  resolution={reward.resolution}  clean_fix={reward.clean_fix}  "
-          f"modified={reward.files_modified}")
+    per_runs: list[dict] = []
+    for k in range(repeats):
+        if repeats > 1:
+            print(f"\n-- run {k + 1}/{repeats} --")
+        episode = run_episode(env, model, client=agent_client)  # resets the env internally
+        print(f"  policy: {episode.stopped_reason} in {episode.steps} steps")
+        if episode.error:
+            print(f"  policy error: {episode.error}")
 
-    diffs = compute_diffs(env.golden, env.workspace, reward.files_modified)
+        reward = env.verify()
+        print(f"  resolution={reward.resolution}  clean_fix={reward.clean_fix}  "
+              f"modified={reward.files_modified}")
+        diffs = compute_diffs(env.golden, env.workspace, reward.files_modified)
 
-    if do_judge:
-        verdict = score_diagnosis(episode.diagnosis, meta.get("correct_diagnosis", ""),
-                                  meta.get("description", ""), client=judge_client)
-    else:
-        verdict = {"score": 0, "rationale": "judge disabled", "model": None}
-    print(f"  diagnosis score: {verdict['score']}/5 — {verdict['rationale']}")
+        if do_judge:
+            verdict = score_diagnosis(episode.diagnosis, meta.get("correct_diagnosis", ""),
+                                      meta.get("description", ""), client=judge_client)
+        else:
+            verdict = {"score": 0, "rationale": "judge disabled", "model": None}
+        print(f"  diagnosis score: {verdict['score']}/5 — {verdict['rationale']}")
+        per_runs.append(score_episode(meta, reward, episode, verdict, diffs=diffs))
 
-    payload = score_episode(meta, reward, episode, verdict, diffs=diffs)
+    payload = _aggregate_runs(per_runs)
 
     # write locally
     out_path = REPO_ROOT / out_dir / model / f"{scenario}.json"
@@ -134,6 +187,10 @@ def run_job(scenario: str, model: str, *, max_steps: Optional[int] = None,
         shown = out_path
     print(f"  wrote {shown}")
     c = payload["cost"]
+    if payload.get("runs", 1) > 1:
+        comps = [round(r["composite"], 2) for r in payload["per_run"]]
+        print(f"  averaged over {payload['runs']} runs — composite "
+              f"{payload['scores']['composite']:.3f} (per-run {comps})")
     print(f"  quality={payload['scores']}")
     print(f"  cost=${c['cost_usd']:.4f} ({c['total_tokens']} tok, score {c['cost_score']}) "
           f"| steps={payload['efficiency']['steps']}")
@@ -153,6 +210,8 @@ def main() -> int:
                    default=int(os.environ.get("MAX_STEPS", "30")))
     p.add_argument("--workspace", default=os.environ.get("WORKSPACE"))
     p.add_argument("--out", default="results")
+    p.add_argument("--repeat", type=int, default=int(os.environ.get("REPEAT", "1")),
+                   help="run the episode N times and average the scores (cuts run-to-run noise)")
     p.add_argument("--no-judge", action="store_true", help="skip the LLM diagnosis judge")
     p.add_argument("--s3", action="store_true", help="force S3 upload (also auto if S3_BUCKET set)")
     args = p.parse_args()
@@ -163,10 +222,11 @@ def main() -> int:
         p.error(f"unknown model {args.model!r}; choose from {ALL_MODELS}")
 
     payload = run_job(args.scenario, args.model, max_steps=args.max_steps,
-                      workspace=args.workspace, out_dir=args.out,
+                      workspace=args.workspace, out_dir=args.out, repeats=args.repeat,
                       do_judge=not args.no_judge, s3=args.s3)
-    # exit non-zero if the incident was not resolved, so callers/CI can branch.
-    return 0 if payload["scores"]["resolution"] == 1.0 else 1
+    # exit non-zero only if the incident resolved in NONE of the runs (a genuine
+    # failure); a partial resolution rate is data, not a job error.
+    return 0 if payload["scores"]["resolution"] > 0 else 1
 
 
 if __name__ == "__main__":

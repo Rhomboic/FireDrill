@@ -9,11 +9,16 @@
 #   ./orchestrator/run_matrix.sh 03-off-by-one claude-opus-4-8   # a single job
 #
 # gpt-5.5's upstream snapshot id can be overridden with GPT55_API_ID.
+#
+# Each cell runs REPEAT times (default 3) and the runner averages the scores, so
+# the dashboard value is the mean over runs — single runs are too noisy to trust.
+#   REPEAT=5 ./orchestrator/run_matrix.sh
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TF="${ROOT}/terraform"
 REGION="${AWS_REGION:-us-west-1}"
+REPEAT="${REPEAT:-3}"
 
 CLUSTER="$(terraform -chdir="${TF}" output -raw ecs_cluster)"
 CP="$(terraform -chdir="${TF}" output -raw capacity_provider)"
@@ -26,7 +31,7 @@ MODELS=(claude-opus-4-8 claude-haiku-4-5 gpt-5.5 gpt-4.1-mini)
 # Build the containerOverrides JSON for one job (SCENARIO/MODEL, +MODEL_API_ID for gpt-5.5).
 overrides() {
   local container="$1" scenario="$2" model="$3"
-  local env="[{\"name\":\"SCENARIO\",\"value\":\"${scenario}\"},{\"name\":\"MODEL\",\"value\":\"${model}\"}"
+  local env="[{\"name\":\"SCENARIO\",\"value\":\"${scenario}\"},{\"name\":\"MODEL\",\"value\":\"${model}\"},{\"name\":\"REPEAT\",\"value\":\"${REPEAT}\"}"
   if [ "${model}" = "gpt-5.5" ] && [ -n "${GPT55_API_ID:-}" ]; then
     env="${env},{\"name\":\"MODEL_API_ID\",\"value\":\"${GPT55_API_ID}\"}"
   fi
@@ -56,6 +61,7 @@ fi
 scenarios="$(ls "${ROOT}/scenarios" | grep -E '^[0-9]')"
 [ "${1:-}" ] && scenarios="$1"
 
+echo "==> launching each cell with REPEAT=${REPEAT} (scores averaged over ${REPEAT} runs)"
 for s in ${scenarios}; do
   for m in "${MODELS[@]}"; do
     launch "${s}" "${m}"
