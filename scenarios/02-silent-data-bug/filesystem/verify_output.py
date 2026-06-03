@@ -1,7 +1,7 @@
 """Verifier for the revenue summary.
 
 Finance has confirmed the correct figures for today's transactions:
-the report must total $964.50 across all 10 transactions. This check fails
+the report must total $964.60 across all 10 transactions. This check fails
 (exit 1) if the pipeline does not produce those figures.
 """
 
@@ -9,7 +9,7 @@ import sys
 
 from pipeline import build_report, load_transactions
 
-EXPECTED_TOTAL = 964.50
+EXPECTED_TOTAL = 964.60
 EXPECTED_COUNT = 10
 
 

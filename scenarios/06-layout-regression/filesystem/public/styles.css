@@ -4,9 +4,6 @@ body {
 }
 
 .navbar {
-  /* The navbar is pinned to the top. On wide screens the brand and links sit on
-     one row (~60px tall); on narrow screens the links wrap onto extra rows, so
-     the navbar gets TALLER than 60px. */
   position: fixed;
   top: 0;
   left: 0;
@@ -40,8 +37,6 @@ body {
 }
 
 .content {
-  /* The fixed navbar overlays the page, so the content renders underneath it
-     instead of below it. */
   margin-top: 0;
   padding: 24px;
 }

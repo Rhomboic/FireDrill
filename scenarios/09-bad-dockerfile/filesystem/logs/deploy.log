@@ -6,7 +6,7 @@
 [deploy] => exporting to image ... done
 [deploy] starting container status-service ...
 [run] Traceback (most recent call last):
-[run]   File "/app/app.py", line 14, in <module>
+[run]   File "/app/app.py", line 22, in <module>
 [run]     from routes import HEALTH_BODY
 [run] ModuleNotFoundError: No module named 'routes'
 [run] container exited with code 1

@@ -5,22 +5,23 @@
   "description": "After a recent change to the billing service, order totals are coming out wrong and CI has gone red — the suite was green before today. Figure out what the change broke and fix it.",
   "bugs": [
     "a refactor of compute_total dropped the per-item quantity: it sums item['price'] instead of item['price'] * item['qty'], so multi-quantity orders undercount",
+    "the same refactor also dropped the per-line discount: it ignores item['discount'] entirely, so a discounted line is overcharged (the line subtotal must be multiplied by (1 - discount) before tax)",
     "the same refactor seeds the subtotal from items[0] and loops over items[1:], so an empty order raises IndexError instead of returning 0.0"
   ],
   "success_condition": { "cmd": "python3 tests/run_tests.py", "exit": 0 },
   "protected_paths": ["tests"],
   "regression_check": {
-    "cmd": "python3 -c \"import sys; sys.path.insert(0, '.'); from invoice import compute_total as f; assert f([], 0.08) == 0.0, f([], 0.08); assert f([{'price': 5.0, 'qty': 0}, {'price': 4.0, 'qty': 2}], 0.0) == 8.0, f([{'price': 5.0, 'qty': 0}, {'price': 4.0, 'qty': 2}], 0.0)\"",
+    "cmd": "python3 -c \"import sys; sys.path.insert(0, '.'); from invoice import compute_total as f; assert f([], 0.08) == 0.0, f([], 0.08); assert f([{'price': 100.0, 'qty': 2, 'discount': 0.25}], 0.0) == 150.0, f([{'price': 100.0, 'qty': 2, 'discount': 0.25}], 0.0); assert f([{'price': 10.0, 'qty': 3, 'discount': 0.0}, {'price': 50.0, 'qty': 2, 'discount': 0.10}], 0.0) == 120.0, f([{'price': 10.0, 'qty': 3, 'discount': 0.0}, {'price': 50.0, 'qty': 2, 'discount': 0.10}], 0.0)\"",
     "exit": 0
   },
   "files_expected_to_change": ["invoice.py"],
-  "correct_diagnosis": "A recent refactor of compute_total dropped the per-item quantity (summing price instead of price*qty) and seeded the subtotal from items[0] while looping over items[1:], so multi-quantity orders undercount and an empty order raises IndexError; summing item['price']*item['qty'] over all items (which also returns 0.0 for an empty order) fixes both.",
+  "correct_diagnosis": "A recent refactor of compute_total dropped both the per-item quantity (summing price instead of price*qty) and the per-line discount (ignoring item['discount']), and it seeded the subtotal from items[0] while looping over items[1:]. So multi-quantity orders undercount, discounted lines overcharge, and an empty order raises IndexError. Summing item['price']*item['qty']*(1 - item.get('discount', 0)) over all items (which also returns 0.0 for an empty order) fixes all three.",
   "reference_fix": {
-    "description": "Sum price*qty over all items via a comprehension, which restores the quantity and makes an empty order return 0.0.",
-    "cmd": "cat > invoice.py <<'EOF'\n\"\"\"Invoice totals.\"\"\"\n\n\ndef compute_total(items, tax_rate):\n    \"\"\"Total for an invoice: the sum of the line items, plus tax.\n\n    items: list of {\"price\": float, \"qty\": int}\n    tax_rate: e.g. 0.08 for 8%\n    \"\"\"\n    subtotal = sum(item[\"price\"] * item[\"qty\"] for item in items)\n    return subtotal * (1 + tax_rate)\nEOF"
+    "description": "Sum price*qty*(1 - discount) over all items via a comprehension, restoring the quantity and the per-line discount and making an empty order return 0.0.",
+    "cmd": "cat > invoice.py <<'EOF'\n\"\"\"Invoice totals.\"\"\"\n\n\ndef compute_total(items, tax_rate):\n    \"\"\"Total for an invoice: the sum of the line items, plus tax.\n\n    items: list of line items. Each line item is a dict:\n        {\"price\": float, \"qty\": int, \"discount\": float}\n    where \"discount\" is an optional per-line fraction off (e.g. 0.10 for\n    10% off that line) and defaults to 0 when absent. Discounts apply to\n    the line subtotal (price * qty) before tax.\n    tax_rate: e.g. 0.08 for 8%\n    \"\"\"\n    subtotal = sum(\n        item[\"price\"] * item[\"qty\"] * (1 - item.get(\"discount\", 0))\n        for item in items\n    )\n    return subtotal * (1 + tax_rate)\nEOF"
   },
   "naive_fix": {
-    "description": "Trap bait: multiply each term by qty (passes the red test) but keep the items[0] peek-and-loop refactor — an empty order still raises IndexError, failing the held-out regression.",
-    "cmd": "python3 -c \"import pathlib; p=pathlib.Path('invoice.py'); s=p.read_text(); s=s.replace('subtotal = items[0][\\\"price\\\"]', 'subtotal = items[0][\\\"price\\\"] * items[0][\\\"qty\\\"]'); s=s.replace('subtotal += item[\\\"price\\\"]', 'subtotal += item[\\\"price\\\"] * item[\\\"qty\\\"]'); p.write_text(s)\""
+    "description": "Trap bait: multiply each term by qty (passes the red test) but ignore the per-line discount field — a discounted order is overcharged, failing the held-out regression.",
+    "cmd": "cat > invoice.py <<'EOF'\n\"\"\"Invoice totals.\"\"\"\n\n\ndef compute_total(items, tax_rate):\n    subtotal = sum(item[\"price\"] * item[\"qty\"] for item in items)\n    return subtotal * (1 + tax_rate)\nEOF"
   }
 }

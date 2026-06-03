@@ -1,11 +1,11 @@
 {
   "name": "spinner-forever",
   "stack": "web",
-  "difficulty": "medium",
-  "description": "On the customer dashboard, the list of projects never loads — there's just a 'Loading…' spinner that spins forever and an empty page. Customers can't see any of their projects. Fix it so the projects show up.",
+  "difficulty": "hard",
+  "description": "On the customer dashboard, the list of projects never loads — there's just a 'Loading…' spinner that spins forever and an empty page. Customers can't see any of their projects. Fix it so a customer sees all of their projects.",
   "bugs": [
     "app.js fetches from a stale hardcoded URL (http://localhost:3001/api/items) that nothing serves, so the request fails, the catch swallows it and the spinner never hides; the data is actually served at ./data/items.json on the same origin",
-    "the projects API returns a paginated envelope ({ page, page_size, total, results: [...] }), but the code treats the whole response as the array of projects (data.map / no data.results), so even once the request succeeds the list renders empty"
+    "the projects API is cursor-paginated: each response holds only one page of `results` plus a `next` link to the following page (null on the last page). The code renders a single page's `results` and never follows `next`, so even once the request succeeds only the first 2 of the 6 projects ever render"
   ],
   "success_condition": { "cmd": "playwright test tests/load.spec.js", "exit": 0 },
   "protected_paths": ["tests", "playwright.config.js"],
@@ -14,13 +14,13 @@
     "cmd": "playwright test tests/regression.spec.js",
     "exit": 0
   },
-  "correct_diagnosis": "Two bugs: app.js fetched a stale dev API URL (http://localhost:3001/api/items) that nothing serves, so the spinner never cleared; and it treated the response as a bare array when the API returns a paginated envelope, so even with the URL fixed nothing rendered. Pointing the fetch at the same-origin data (./data/items.json) AND reading the projects from data.results loads and renders all the projects.",
+  "correct_diagnosis": "Two bugs: app.js fetched a stale dev API URL (http://localhost:3001/api/items) that nothing serves, so the spinner never cleared; and the projects API is cursor-paginated — each response carries only one page of `results` plus a `next` link — but the code rendered just the first page and never followed `next`, so only 2 of 6 projects showed. Pointing the fetch at the same-origin data AND walking the cursor chain (accumulating every page's `results` until `next` is null) loads and renders all six projects, while still showing the empty state when there is no data.",
   "reference_fix": {
-    "description": "Fetch the same-origin data and read the projects from the paginated envelope's `results`.",
-    "cmd": "cat > public/app.js <<'EOF'\n// Load the user's projects and render them. The projects API returns a\n// paginated envelope: { page, page_size, total, results: [{ id, name }, ...] }.\n\nconst API_URL = \"./data/items.json\";\n\nfunction render(items) {\n  const list = document.getElementById(\"items\");\n  const empty = document.getElementById(\"empty\");\n  if (!items || items.length === 0) {\n    empty.style.display = \"block\";\n    list.innerHTML = \"\";\n    return;\n  }\n  empty.style.display = \"none\";\n  list.innerHTML = items.map((p) => `<li>${p.name}</li>`).join(\"\");\n}\n\nasync function load() {\n  const spinner = document.getElementById(\"spinner\");\n  try {\n    const res = await fetch(API_URL);\n    const data = await res.json();\n    spinner.style.display = \"none\";\n    render(data.results);\n  } catch (err) {\n    console.error(\"failed to load projects\", err);\n  }\n}\n\nload();\nEOF"
+    "description": "Fetch the same-origin data and follow the `next` cursor, accumulating every page's `results` before rendering.",
+    "cmd": "cat > public/app.js <<'EOF'\n// Load the user's projects and render them. The projects API is cursor-paginated:\n// each response is an envelope { page, page_size, total, next, results: [...] },\n// where `next` is the URL of the following page (null on the last page).\n\nconst API_URL = \"./data/items.json\";\n\nfunction render(items) {\n  const list = document.getElementById(\"items\");\n  const empty = document.getElementById(\"empty\");\n  if (!items || items.length === 0) {\n    empty.style.display = \"block\";\n    list.innerHTML = \"\";\n    return;\n  }\n  empty.style.display = \"none\";\n  list.innerHTML = items.map((p) => `<li>${p.name}</li>`).join(\"\");\n}\n\nasync function load() {\n  const spinner = document.getElementById(\"spinner\");\n  try {\n    const all = [];\n    let url = API_URL;\n    while (url) {\n      const res = await fetch(url);\n      const data = await res.json();\n      all.push(...(data.results || []));\n      url = data.next;\n    }\n    spinner.style.display = \"none\";\n    render(all);\n  } catch (err) {\n    console.error(\"failed to load projects\", err);\n  }\n}\n\nload();\nEOF"
   },
   "naive_fix": {
-    "description": "Trap bait: fix only the request URL (point it at ./data/items.json). The request now resolves and the spinner hides (visible check passes), but the code still treats the paginated envelope as an array, so no projects render — the held-out 'projects render' regression fails.",
+    "description": "Trap bait: fix only the request URL (point it at ./data/items.json). The request now resolves, the spinner hides and the first page of projects renders, so the visible check passes — but the code renders just one page and never follows the `next` cursor, so four projects are still missing and the held-out 'all projects render' regression fails.",
     "cmd": "node -e \"const fs=require('fs');const p='public/app.js';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('http://localhost:3001/api/items', './data/items.json'));\""
   }
 }

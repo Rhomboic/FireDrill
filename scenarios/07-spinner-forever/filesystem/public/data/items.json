@@ -1,11 +1,10 @@
 {
   "page": 1,
-  "page_size": 20,
-  "total": 4,
+  "page_size": 2,
+  "total": 6,
+  "next": "./data/items-2.json",
   "results": [
     { "id": 1, "name": "Apollo" },
-    { "id": 2, "name": "Borealis" },
-    { "id": 3, "name": "Cascade" },
-    { "id": 4, "name": "Drift" }
+    { "id": 2, "name": "Borealis" }
   ]
 }

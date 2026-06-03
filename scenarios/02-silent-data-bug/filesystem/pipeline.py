@@ -15,7 +15,13 @@ def load_transactions(path: str = DATA) -> list[dict]:
 
 
 def total_revenue(records: list[dict]) -> float:
-    """Add up the revenue across the given transactions."""
+    """Add up the revenue across the given transactions.
+
+    NOTE: amounts are exact cents. Finance reconciles this total to the cent,
+    so it must equal the exact sum of the amounts. Accumulating money in binary
+    float drifts (e.g. 964.60 lands as 964.5999999999999) and breaks the
+    exact-cents reconciliation — sum with Decimal/quantize, not float.
+    """
     total = 0.0
     for r in records:
         total += r["amount"]
