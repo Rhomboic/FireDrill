@@ -13,7 +13,10 @@ export function modelStats(jobs, model) {
     composite: mean(js.map((j) => j.scores.composite)),
     blast: mean(js.map((j) => j.scores.blast_radius)),
     diagnosis: mean(js.map((j) => j.scores.diagnosis)),
-    totalCost: sum(js.map((j) => j.cost?.cost_usd ?? 0)),
+    // totalCost = actual money spent (across all repeat runs); avgCost = mean
+    // cost per run (the per-cell, cost-vs-capability value). Old single-run
+    // results have no cost_usd_total, so fall back to cost_usd.
+    totalCost: sum(js.map((j) => j.cost?.cost_usd_total ?? j.cost?.cost_usd ?? 0)),
     avgCost: mean(js.map((j) => j.cost?.cost_usd ?? 0)),
   };
 }
