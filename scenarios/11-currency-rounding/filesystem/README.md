@@ -26,5 +26,5 @@ python3 tests/run_tests.py
 ## Conventions
 
 See [CONVENTIONS.md](CONVENTIONS.md). The important one for this service: money is
-integer cents via `app.core.money.Money`, and amounts are divided with
-`Money.allocate`, never by hand.
+integer cents via `app.core.money.Money`; don't do money math with floats or
+ad-hoc rounding.

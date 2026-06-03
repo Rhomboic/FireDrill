@@ -2,4 +2,3 @@
 2026-05-30 14:05:43 INFO  support: customer on INV-1002 says "the three shares don't add up to the bill"
 2026-05-31 09:11:02 WARN  billing.split_bill INV-1003 total_cents=10400 payers=3 -> [3467, 3467, 3467] sum=10401 (over 1c)
 2026-05-31 09:11:48 INFO  reconciliation job flagged INV-1002 and INV-1003: split shares do not sum to invoice total
-2026-05-31 09:12:30 NOTE  this path still calls app.legacy.pricing.even_split; CONVENTIONS.md says splits must go through app.core.money.Money.allocate
