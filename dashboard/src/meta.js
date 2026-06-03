@@ -22,13 +22,13 @@ export const vendorBadge = (m) =>
 export const scoreClass = (c) =>
   c >= 0.85 ? "s-good" : c >= 0.5 ? "s-mid" : "s-bad";
 
-// Composite → continuous colour. 1.0 = green, ≤0.5 = red, and a smooth
-// red → orange → yellow → green hue gradient over (0.5, 1.0). Returns
+// Composite → continuous colour. 1.0 = green, 0.6 and below = red, and a smooth
+// red, orange, yellow, green hue gradient over (0.6, 1.0). Returns
 // { fg, bg } for the cell's text and (translucent) background.
 export const scoreColor = (c) => {
   const t = Math.max(0, Math.min(1, Number(c ?? 0)));
-  const u = Math.max(0, Math.min(1, (t - 0.5) / 0.5)); // 0 at ≤0.5, 1 at 1.0
-  const hue = u * 140; // 0 = red → 140 = green
+  const u = Math.max(0, Math.min(1, (t - 0.6) / 0.4)); // 0 at <=0.6, 1 at 1.0
+  const hue = u * 140; // 0 = red, 140 = green
   return {
     fg: `hsl(${hue}, 80%, 62%)`,
     bg: `hsla(${hue}, 70%, 45%, 0.20)`,
