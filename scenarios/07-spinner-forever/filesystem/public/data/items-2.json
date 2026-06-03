@@ -1,0 +1,10 @@
+{
+  "page": 2,
+  "page_size": 2,
+  "total": 6,
+  "next": "./data/items-3.json",
+  "results": [
+    { "id": 3, "name": "Cascade" },
+    { "id": 4, "name": "Drift" }
+  ]
+}

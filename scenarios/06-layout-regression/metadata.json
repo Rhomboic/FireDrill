@@ -2,10 +2,10 @@
   "name": "layout-regression",
   "stack": "web",
   "difficulty": "medium",
-  "description": "The marketing site's homepage looks broken — the navigation bar is overlapping the headline at the top of the page, so the first thing visitors see is covered up. Fix the layout so the navbar never covers the content.",
+  "description": "The marketing site's homepage looks broken — the navigation bar is overlapping the content at the top of the page, so the first thing visitors see (including the 'Start free trial' button) is covered up. Fix the layout so the navbar never covers the content, on any device.",
   "bugs": [
-    "the navbar is position:fixed, so it is taken out of normal flow and overlays the page; .content has margin-top: 0, so the content (including the headline) renders underneath the navbar instead of below it",
-    "the navbar has no fixed height: on narrow (mobile) viewports its links wrap onto extra rows and it grows much taller than on desktop, so any fixed desktop-sized top offset still leaves the content clipped under it on mobile"
+    "the navbar is position:fixed, so it is taken out of normal flow and overlays the page; .content has margin-top: 0, so the content (including the topmost 'Start free trial' button) renders underneath the navbar instead of below it — this is the obvious desktop overlap symptom",
+    "the navbar has no fixed height (it is a wrapping flexbox): on narrow (mobile) viewports its links wrap onto extra rows and it grows much taller than on desktop. This isn't stated anywhere in the code — so a fix that just pushes the content down by a fixed desktop-sized offset still leaves the content (and the call-to-action button) clipped under the taller navbar on mobile"
   ],
   "success_condition": { "cmd": "playwright test tests/layout.spec.js", "exit": 0 },
   "protected_paths": ["tests", "playwright.config.js"],
@@ -14,13 +14,13 @@
     "cmd": "playwright test tests/regression.spec.js",
     "exit": 0
   },
-  "correct_diagnosis": "The navbar is position:fixed (out of flow) so it overlays the content, and .content had no offset — and because the navbar has no fixed height it grows taller when its links wrap on mobile, so a hardcoded top margin can't reliably clear it. Putting the navbar in normal flow (position: sticky) so the content always lays out below it, regardless of the navbar's height, fixes the overlap at every viewport.",
+  "correct_diagnosis": "The navbar is position:fixed (out of flow) so it overlays the content, and .content had no offset — so the content, including the topmost 'Start free trial' button, renders under the navbar. Because the navbar is a wrapping flexbox with no fixed height, it grows taller when its links wrap on mobile, so a hardcoded desktop-sized top margin can't reliably clear it (the button stays covered on mobile). Putting the navbar in normal flow (position: sticky) so the content always lays out below it, regardless of the navbar's height, fixes the overlap at every viewport.",
   "reference_fix": {
     "description": "Put the navbar in normal flow (position: sticky) so content always sits below it at any navbar height.",
     "cmd": "node -e \"const fs=require('fs');const p='public/styles.css';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('position: fixed;', 'position: sticky;'));\""
   },
   "naive_fix": {
-    "description": "Trap bait: push the content down by a fixed desktop-sized margin (margin-top: 60px). The desktop overlap is gone (visible check passes), but on mobile the navbar's links wrap and it grows taller than 60px, so the headline is still clipped under it — the held-out mobile regression fails.",
+    "description": "Trap bait: push the content down by a fixed desktop-sized margin (margin-top: 60px). The desktop overlap is gone (visible check passes), but the navbar is still position:fixed (out of flow) — on mobile its links wrap and it grows taller than 60px, so the 'Start free trial' button is still clipped under it and the navbar intercepts clicks on it. The held-out mobile regression (button fully below the navbar AND clickable) fails.",
     "cmd": "node -e \"const fs=require('fs');const p='public/styles.css';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('margin-top: 0;', 'margin-top: 60px;'));\""
   }
 }

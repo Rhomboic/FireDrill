@@ -1,0 +1,10 @@
+{
+  "page": 3,
+  "page_size": 2,
+  "total": 6,
+  "next": null,
+  "results": [
+    { "id": 5, "name": "Everest" },
+    { "id": 6, "name": "Frontier" }
+  ]
+}

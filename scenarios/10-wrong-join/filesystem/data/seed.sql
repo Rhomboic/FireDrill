@@ -1,18 +1,16 @@
 CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
-CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL);
-CREATE TABLE line_items (id INTEGER PRIMARY KEY, order_id INTEGER, sku TEXT);
+CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL, status TEXT);
 
 INSERT INTO customers (id, name) VALUES
   (1, 'Alice'), (2, 'Bob'), (3, 'Carol'), (4, 'Dave'), (5, 'Erin');
 
--- Erin (id 5) has no orders this period and should still appear with 0.00.
-INSERT INTO orders (id, customer_id, amount) VALUES
-  (1, 1, 100.0), (2, 1, 50.0),
-  (3, 2, 200.0),
-  (4, 3, 75.0), (5, 3, 25.0),
-  (6, 4, 300.0);
-
--- This period each order happens to have exactly one line item.
-INSERT INTO line_items (id, order_id, sku) VALUES
-  (1, 1, 'A'), (2, 2, 'B'), (3, 3, 'C'),
-  (4, 4, 'D'), (5, 5, 'E'), (6, 6, 'F');
+-- Revenue counts PAID orders only; pending/refunded orders must NOT be summed.
+-- Every customer must appear, including ones with no paid revenue (shown as 0).
+INSERT INTO orders (id, customer_id, amount, status) VALUES
+  (1, 1, 100.0, 'paid'),
+  (2, 1, 50.0, 'pending'),     -- Alice: pending must NOT count -> 100.00
+  (3, 2, 200.0, 'paid'),       -- Bob -> 200.00
+  (4, 3, 75.0, 'paid'),
+  (5, 3, 25.0, 'paid'),        -- Carol: two paid -> 100.00
+  (6, 5, 40.0, 'paid');        -- Erin -> 40.00
+-- Dave (id 4) has NO orders at all this period and must still appear with 0.00.

@@ -14,9 +14,6 @@ btn.addEventListener("click", () => {
   const result = document.getElementById("result");
   const email = input.value.trim();
 
-  // BUG: this rejects valid addresses — the `!` is on the wrong side, so the
-  // "invalid email" branch fires for *valid* input and the success branch
-  // never runs (the field is never cleared and no confirmation appears).
   if (isValidEmail(email)) {
     result.textContent = "Please enter a valid email address.";
     return;

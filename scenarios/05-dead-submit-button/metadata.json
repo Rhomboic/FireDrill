@@ -4,8 +4,8 @@
   "difficulty": "medium",
   "description": "Customers report that the 'Request a demo' button on the marketing site does nothing — they click it and no confirmation ever appears. Sales is losing leads. Fix it so a customer who enters their email gets a confirmation.",
   "bugs": [
-    "public/app.js looks up the button by the wrong id (getElementById('submitBtn')) while the button's id is 'submit-btn', so it returns null and the click handler is never attached (the script throws on load)",
-    "the validation branch is inverted: it shows the 'invalid email' error when isValidEmail(email) is TRUE, so even after the handler is wired up a valid address is rejected — the confirmation never shows and the field is never cleared"
+    "public/app.js looks up the button by the wrong id (getElementById('submitBtn')) while the button's id is 'submit-btn', so it returns null and the click handler is never attached (the script throws on load) — this is the obvious 'dead button' symptom",
+    "the validation branch is inverted (and undocumented): it shows the 'invalid email' error when isValidEmail(email) is TRUE and takes the success branch when the email is INVALID. So even once the handler is wired up, a valid address is wrongly rejected (no confirmation, field never cleared) and an invalid address is wrongly 'accepted' (shows a confirmation and clears the field). Wiring the button alone does not fix this."
   ],
   "success_condition": { "cmd": "playwright test tests/submit.spec.js", "exit": 0 },
   "protected_paths": ["tests", "playwright.config.js"],
@@ -14,13 +14,13 @@
     "cmd": "playwright test tests/regression.spec.js",
     "exit": 0
   },
-  "correct_diagnosis": "Two bugs: app.js selected the submit button with the wrong id ('submitBtn' vs the actual 'submit-btn') so the click handler never attached, AND the validation check was inverted (it errored when the email WAS valid). Using the correct id wires the handler, and flipping the validation condition so valid input takes the success branch makes the confirmation appear and clears the field; invalid input is still rejected.",
+  "correct_diagnosis": "Two bugs: app.js selected the submit button with the wrong id ('submitBtn' vs the actual 'submit-btn') so the click handler never attached (the visible 'dead button' symptom), AND the validation check was inverted — it errored when the email WAS valid and took the success branch when it was INVALID. Using the correct id wires the handler; flipping the validation condition so valid input takes the success branch makes the confirmation appear and clears the field, while invalid input is rejected with the error and the field is left intact. Fixing only the id leaves the inverted logic, so valid input is still wrongly rejected and invalid input is wrongly accepted.",
   "reference_fix": {
     "description": "Use the correct button id AND fix the inverted validation so valid input succeeds.",
     "cmd": "cat > public/app.js <<'EOF'\n// Wire up the demo-request form: on submit, validate the email, then either\n// show a confirmation (and clear the field) or show a validation error.\n\nconst btn = document.getElementById(\"submit-btn\");\n\nfunction isValidEmail(value) {\n  return /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(value);\n}\n\nbtn.addEventListener(\"click\", () => {\n  const input = document.getElementById(\"email\");\n  const result = document.getElementById(\"result\");\n  const email = input.value.trim();\n\n  if (!isValidEmail(email)) {\n    result.textContent = \"Please enter a valid email address.\";\n    return;\n  }\n\n  result.textContent = `Thanks! We'll email ${email}.`;\n  input.value = \"\";\n});\nEOF"
   },
   "naive_fix": {
-    "description": "Trap bait: fix only the wrong id (the click now produces a response, so the visible smoke test passes) but leave the inverted validation — valid input is wrongly rejected, so the held-out 'valid email succeeds' regression fails.",
+    "description": "Trap bait: fix only the wrong id (the click now produces a response, so the visible smoke test passes) but leave the inverted validation — valid input is wrongly rejected (no confirmation, field not cleared) and invalid input is wrongly accepted, so the held-out full-flow regression fails on both the valid-success and invalid-rejection assertions.",
     "cmd": "node -e \"const fs=require('fs');const p='public/app.js';fs.writeFileSync(p, fs.readFileSync(p,'utf8').replace('submitBtn','submit-btn'));\""
   }
 }

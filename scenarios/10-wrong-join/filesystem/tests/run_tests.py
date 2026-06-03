@@ -10,10 +10,12 @@ report = dict(get_revenue_report(build_db()))
 # Every customer must appear — including ones with no orders this period.
 assert set(report) == {"Alice", "Bob", "Carol", "Dave", "Erin"}, \
     f"report is missing customers: {sorted(report)}"
-assert report["Erin"] == 0, f"a customer with no orders should show 0, got {report.get('Erin')}"
-assert report["Alice"] == 150.0, report.get("Alice")
+# Dave placed no orders this period and must show 0, not be dropped.
+assert report["Dave"] == 0, f"a customer with no orders should show 0, got {report.get('Dave')}"
+# Only PAID orders count toward revenue (Alice's pending order must be excluded).
+assert report["Alice"] == 100.0, report.get("Alice")
 assert report["Bob"] == 200.0, report.get("Bob")
 assert report["Carol"] == 100.0, report.get("Carol")
-assert report["Dave"] == 300.0, report.get("Dave")
+assert report["Erin"] == 40.0, report.get("Erin")
 
 print("revenue report tests passed")

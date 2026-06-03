@@ -1,5 +1,5 @@
 // Load the user's projects and render them. The projects API returns a
-// paginated envelope: { page, page_size, total, results: [{ id, name }, ...] }.
+// paginated envelope: { page, page_size, total, next, results: [{ id, name }, ...] }.
 
 const API_URL = "http://localhost:3001/api/items";
 
@@ -18,16 +18,13 @@ function render(items) {
 async function load() {
   const spinner = document.getElementById("spinner");
   try {
+    // BUG: this points at a stale dev API that nothing serves, so the request
+    // rejects, the catch below swallows it, and the spinner spins forever.
     const res = await fetch(API_URL);
     const data = await res.json();
     spinner.style.display = "none";
-    // BUG: `data` is the paginated envelope, not the array of projects, so
-    // `data.map` is undefined and this throws — nothing ever renders even once
-    // the request succeeds.
-    render(data.map((p) => p));
+    render(data.results);
   } catch (err) {
-    // Request failed (or the response shape was wrong) — the spinner is already
-    // hidden above, but nothing renders.
     console.error("failed to load projects", err);
   }
 }

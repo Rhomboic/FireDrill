@@ -1,6 +1,11 @@
 [2026-05-31 06:00:02] INFO  revenue pipeline started
 [2026-05-31 06:00:02] INFO  loaded 10 transactions from data/transactions.json
-[2026-05-31 06:00:02] INFO  revenue summary: total=564.00 count=7
+[2026-05-31 06:00:02] INFO  revenue summary: total=629.89 count=7
 [2026-05-31 06:00:02] INFO  pipeline finished
 [2026-05-31 09:14:50] WARN  finance flagged the daily report: expected 10 transactions
-                            totalling 964.50, but the summary shows 7 / 564.00
+                            totalling 964.60, but the summary shows 7 / 629.89
+[2026-05-31 09:41:18] WARN  ledger reconciliation did NOT balance to the cent:
+                            expected 964.60, computed total carried float drift
+                            (964.5999999999999) — off from the exact cents figure.
+                            amounts are exact cents; the running total must be
+                            summed exactly (Decimal/quantize), not in binary float.
