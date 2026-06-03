@@ -88,6 +88,17 @@ What the data shows:
 
 **The methodological lesson of this run:** the trap recalibration looked like it *failed* on a single noisy run (spread fell to 0.060), but the scenarios that scored 0.00 spread there — 06, 07, 09 — are the **strongest** discriminators once averaged over 6 runs. Trusting a benchmark means averaging out the variance first. Two scenarios still don't separate the tiers: **10 wrong-join** is too easy (every model handles the LEFT-JOIN trap) and **04 failing-test** is marginal — calibrating each trap to the narrow band where flagships pass and small models don't, on a *trustworthy* average, is the ongoing work of building a gym.
 
+### The read, by model
+
+The headline finding is that **capability here is a smooth gradient, not pass/fail** — every model fixes the visible bug, but *how well* it fixes it spans 0.84–0.99, and each model occupies a distinct point on the cost–capability frontier:
+
+- **Claude Opus 4.8 — precision.** Top composite (0.99) on the strength of the **tightest blast radius in the field (0.98)**: when it fixes, it touches only what it should. Resolves everything; its only dips are the payments-retry and failing-test edges, a hair off perfect. Priciest at **$0.107/run** — worth it when surgical correctness is non-negotiable.
+- **GPT-5.5 — diagnostician.** Tied with Opus on composite (0.99) and the **best root-cause explanations here (diagnosis 1.00)**, but a slightly looser blast radius (0.95) — it occasionally over-touches. Same price tier. Pick it for the clearest *why*, Opus for the cleanest *fix*.
+- **Claude Haiku 4.5 — value.** **0.94 composite at ~⅓ the flagship cost**: resolves 100%, diagnoses well (0.92), only 0.05 behind the flagships. Its gap is blast radius (0.78) — on the off-by-one and payments traps it takes the symptomatic fix. The rational default for the median incident.
+- **GPT-4.1-mini — the floor.** 0.84 composite, the **only sub-100% resolver (90%)**, loosest blast (0.62). It trips the hardest traps — layout-on-mobile (0.67), the missing Dockerfile `COPY` (0.72) — and sometimes can't resolve the surface bug at all. But at **$0.0066/run (~16× cheaper than Opus)**, it's the throughput play where errors are cheap to catch.
+
+**The frontier:** Haiku **strictly dominates** GPT-4.1-mini (better *and* still cheap), and the flagships buy the last ~0.05 of capability at ~3× Haiku's cost. For most incident response Haiku is the sweet spot; reach for a flagship when a wrong or messy fix is expensive. This is exactly the comparison a single blended score would hide, and the reason cost is kept as its own axis.
+
 ## Layout
 
 ```
