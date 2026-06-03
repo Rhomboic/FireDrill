@@ -44,41 +44,49 @@ Each scenario also plants a **regression trap**: a second, subtler, production-s
 
 ## Results — does the gym discriminate?
 
-A gym is only useful if it separates policies. The first matrix (one well-signposted bug per scenario) was **quality-saturated**: every model resolved 8/10 and the composite spread across all four models was just **0.024** — no signal. Adding the regression trap to every scenario **quadrupled** the spread to **0.100** and produced a clean two-tier split.
+A gym is only useful if it separates policies. The story arrived in three acts:
 
-**Most recent full run** — 10 scenarios × 4 models, reasoning flagships at high effort:
+1. **Saturated.** The first matrix (one well-signposted bug per scenario) had every model resolving 8/10 — composite spread across the four models was just **0.024**. No signal.
+2. **Traps.** A held-out regression trap on every scenario (the symptomatic fix passes the visible check but fails a hidden one) lifted the spread to **0.100**.
+3. **Averaged.** A *single* run turned out to be too noisy to trust — an untouched scenario swung from 0.28 spread to 0.00 between two runs on model non-determinism alone. So each cell is now the **mean of 6 runs**. With the variance averaged out, the spread is **0.152** — the largest yet, and a stable ordering.
 
-| Model | Composite | Resolution | Blast radius | Diagnosis | Regression pass | $ / job |
+### Methodology
+
+Each `(scenario × model)` cell runs **N = 6 episodes** and the scores are averaged (`run_matrix.sh` defaults to `REPEAT=3`; this run used 6). Resolution becomes a pass-*rate*; cost is reported two ways — **mean cost per run** (the per-cell value you compare models on) and **actual spend** across all runs (the real bill). Reasoning flagships run at high effort.
+
+### Most recent run — 10 scenarios × 4 models, 6 runs/cell averaged
+
+| Model | Composite | Resolution | Blast radius | Diagnosis | Cost / run | Actual spend |
 |---|---|---|---|---|---|---|
-| **Claude Opus 4.8** | **0.98** | 100% | 0.90 | 0.98 | 9/10 | $0.096 |
-| **GPT-5.5** | **0.97** | 100% | 0.90 | 0.96 | 9/10 | $0.108 |
-| Claude Haiku 4.5 | 0.90 | 100% | 0.60 | 0.88 | 6/10 | $0.037 |
-| GPT-4.1 mini | 0.88 | 100% | 0.60 | 0.78 | 6/10 | $0.0055 |
+| **Claude Opus 4.8** | **0.99** | 100% | 0.98 | 0.97 | $0.107 | $1.07 |
+| **GPT-5.5** | **0.99** | 100% | 0.95 | 1.00 | $0.108 | $1.08 |
+| Claude Haiku 4.5 | 0.94 | 100% | 0.78 | 0.92 | $0.040 | $0.40 |
+| GPT-4.1 mini | 0.84 | 90% | 0.62 | 0.87 | $0.0066 | $0.066 |
 
-Three things the data shows:
+What the data shows:
 
-1. **Resolution alone is blind.** Every model — including the cheapest — makes the visible success condition pass, so **resolution is 100% across the board**. The capability gap is invisible to pass/fail; it only surfaces in the held-out regression and blast radius. This is the entire argument for a multi-dimensional reward.
-2. **The trap discriminates *through* blast radius.** A failed `regression_check` hard-zeros the blast-radius dimension (a fix that breaks a held-out check is maximal collateral damage), costing the full 0.2 composite weight. Flagships pass **9/10** regressions, small models **6/10** — which is exactly the blast gap (0.90 vs 0.60) and the composite gap.
-3. **The flagships now *earn* their premium.** Before the trap they cost ~17–44× more for identical scores; now they cost ~17× more **and** pass the traps the cheap models fail. If you only need the surface fix, GPT-4.1-mini is the value pick at **$0.0055/job**; when fix *correctness* matters, the flagships are worth it.
+1. **Resolution alone is blind.** The top three resolve 100% and GPT-4.1-mini 90%, yet composites span **0.84 – 0.99**. The capability gap barely registers in pass/fail; it lives in the **held-out regression** and **blast radius**. This is the entire argument for a multi-dimensional reward.
+2. **Discrimination flows through blast radius.** A failed `regression_check` hard-zeros the blast dimension (a fix that breaks a held-out check is maximal collateral), costing the full 0.2 composite weight. The blast column (0.98 → 0.62) *is* the composite spread.
+3. **Cost tracks capability, and the bill is honest.** Opus costs ~16× GPT-4.1-mini per run **and** scores 0.15 higher. If you only need the surface fix, GPT-4.1-mini is the value pick at **$0.0066/run**; when fix *correctness* matters, the flagships earn the premium.
 
-**Which traps fired** (composite per model; `*` = took the bait — failed the held-out regression):
+### Which traps fire (composite per model, averaged over 6 runs)
 
-| Scenario | Opus | GPT-5.5 | Haiku | 4.1-mini | the trap |
-|---|---|---|---|---|---|
-| 08 malformed-config | 1.00 | 1.00 | 0.72\* | 0.72\* | config-precedence merge (defaults shadow operator settings) |
-| 01 payments-service-down | 1.00 | 1.00 | 0.76\* | 0.76\* | retry helper gives up one attempt early |
-| 03 off-by-one | 1.00 | 0.96 | 0.76\* | 0.76\* | unguarded loop on partial / out-of-range pages |
-| 02 silent-data-bug | 0.76\* | 0.76\* | 0.76\* | 0.76\* | float money vs Decimal |
-| 04 failing-test | 1.00 | 1.00 | 0.96 | 0.92 | empty-order edge |
-| 05 dead-submit-button | 1.00 | 1.00 | 1.00 | 0.92 | inverted validation |
-| 06 layout-regression | 1.00 | 1.00 | 1.00 | 0.92 | holds on mobile viewport |
-| 07 spinner-forever | 1.00 | 1.00 | 1.00 | 1.00 | paginated-envelope response shape |
-| 09 bad-dockerfile | 1.00 | 1.00 | 1.00 | 1.00 | shell-form CMD swallows SIGTERM |
-| 10 wrong-join | 1.00 | 1.00 | 1.00 | 1.00 | one-to-many JOIN fan-out |
+| Scenario | Opus | GPT-5.5 | Haiku | 4.1-mini | spread | the trap |
+|---|---|---|---|---|---|---|
+| 06 layout-regression | 0.99 | 1.00 | 0.99 | **0.67** | 0.33 | naive z-index/margin fix breaks on mobile |
+| 09 bad-dockerfile | 1.00 | 1.00 | 1.00 | **0.72** | 0.28 | a `templates/` asset a 2nd endpoint needs is never `COPY`d |
+| 03 off-by-one | 1.00 | 0.99 | **0.76** | **0.76** | 0.24 | unguarded loop on partial / out-of-range pages |
+| 01 payments-service-down | 0.96 | 0.95 | **0.80** | **0.75** | 0.21 | retry helper gives up one attempt early |
+| 07 spinner-forever | 1.00 | 1.00 | 1.00 | **0.83** | 0.17 | cursor-paginated API; only page 1 loads |
+| 05 dead-submit-button | 1.00 | 0.95 | 1.00 | 0.87 | 0.13 | inverted validation rejects valid input |
+| 08 malformed-config | 1.00 | 1.00 | 0.91 | 0.88 | 0.12 | config-precedence merge shadows operator settings |
+| 02 silent-data-bug | 1.00 | 1.00 | 1.00 | 0.95 | 0.05 | float money vs Decimal |
+| 04 failing-test | 0.96 | 1.00 | 0.96 | 0.96 | 0.04 | per-line discount applied before tax |
+| 10 wrong-join | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 | LEFT JOIN degraded to inner by a `WHERE` |
 
-**6 of 10 scenarios now discriminate, up from 2** — and **three traps (08, 01, 03) fire on the small models only**, the ideal flagship-vs-baseline split.
+**7 of 10 scenarios discriminate** (spread > 0.05), with a clear ordering: **Opus ≈ GPT-5.5 > Haiku > GPT-4.1-mini**. The harder traps (06, 09, 07) cleanly isolate the weakest model; the off-by-one-class traps (03, 01) split *both* small models from the flagships.
 
-**Honest calibration note.** A trap only discriminates in the narrow band where flagships catch it and small models don't, and four scenarios miss that band: **02 is too hard** (the float-vs-Decimal edge fools all four → everyone 0.76), and **07 / 09 / 10 are too easy** (every model handled the response-shape, SIGTERM, and JOIN-fan-out edges → all 1.00). The 04/05/06 dips come from the diagnosis judge and blast radius catching the *weakest* model, not from the trap firing. Tightening 02 (soften) and 07/09/10 (sharpen) is the next iteration — and the only way to find that band is empirically, by running the matrix and reading exactly this table. That tuning loop *is* the work of building a gym.
+**The methodological lesson of this run:** the trap recalibration looked like it *failed* on a single noisy run (spread fell to 0.060), but the scenarios that scored 0.00 spread there — 06, 07, 09 — are the **strongest** discriminators once averaged over 6 runs. Trusting a benchmark means averaging out the variance first. Two scenarios still don't separate the tiers: **10 wrong-join** is too easy (every model handles the LEFT-JOIN trap) and **04 failing-test** is marginal — calibrating each trap to the narrow band where flagships pass and small models don't, on a *trustworthy* average, is the ongoing work of building a gym.
 
 ## Layout
 
@@ -139,7 +147,7 @@ Each job is a self-contained container — one `(scenario × model)` episode tha
 Live. Ten scenarios across Python, Node, React/Playwright, config, Docker, and
 SQL, each gated by an objective verifier (broken → fixable → clean) and a
 held-out regression trap. The full `scenario × model` matrix runs on ECS-on-EC2
-autoscaling across four models; the latest run shows a clean two-tier capability
-split (composite spread 0.100, reasoning flagships ~0.97 vs small baselines
-~0.89 — see Results). Results render at
+autoscaling across four models, **6 runs/cell averaged**; the latest run shows a
+clean capability ordering (composite spread **0.152**, Opus ≈ GPT-5.5 0.99 >
+Haiku 0.94 > GPT-4.1-mini 0.84 — see Results). Results render at
 **[firedrill.adamissah.com](https://firedrill.adamissah.com)**.

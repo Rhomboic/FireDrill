@@ -195,6 +195,52 @@ small models only — the ideal flagship-vs-baseline split.**
 
 ---
 
+## Finding 4 — Single runs are noise; averaging over N reveals the real ordering
+
+**The trap.** After Finding 3 I recalibrated the saturated scenarios (softened 02,
+hardened 07/09/10, sharpened 04/05/06). A single re-run looked like a regression:
+composite spread *fell* from 0.100 to 0.060, and an **untouched** scenario (08)
+swung from 0.28 spread to 0.00. The recalibration looked like a failure.
+
+It wasn't — it was variance. A model's fix quality on a trap varies run to run,
+so one run per cell is too noisy to compare. So each cell now runs **N times and
+averages** (`run_job --repeat N`; `run_matrix.sh REPEAT=`, default 3).
+
+**Averaged over 6 runs/cell, the picture inverts:**
+
+| model | composite | resolution | blast | diagnosis | $/run | actual |
+|---|---|---|---|---|---|---|
+| claude-opus-4-8 | 0.99 | 100% | 0.98 | 0.97 | $0.107 | $1.07 |
+| gpt-5.5 | 0.99 | 100% | 0.95 | 1.00 | $0.108 | $1.08 |
+| claude-haiku-4-5 | 0.94 | 100% | 0.78 | 0.92 | $0.040 | $0.40 |
+| gpt-4.1-mini | 0.84 | 90% | 0.62 | 0.87 | $0.0066 | $0.066 |
+
+**Composite spread 0.152 — the largest yet** (0.024 → 0.100 → 0.152), and a stable
+ordering: **Opus ≈ GPT-5.5 > Haiku > GPT-4.1-mini**. 7/10 scenarios now
+discriminate (>0.05).
+
+**The crucial reversal:** the scenarios I "hardened" in the recalibration —
+06-layout-regression (mini 0.67), 09-bad-dockerfile (mini 0.72),
+07-spinner-forever (mini 0.83) — scored **0.00 spread on the single noisy run**
+but are the **strongest discriminators once averaged**. The harden worked; the
+single-run check was lying. Off-by-one-class traps (03, 01) still split both
+small models from the flagships.
+
+**Takeaways:**
+1. **Average before you conclude.** n=1 per cell swings ±0.28 on an untouched
+   scenario; comparing models or judging a recalibration on a single run is
+   measuring noise. This is the single most important methodology fix.
+2. **The recalibration was right, not wrong** — Finding 3's "negative" follow-up
+   was an artifact of n=1. Don't revert on one run.
+3. **Still saturated:** 10-wrong-join (the LEFT-JOIN trap every model handles)
+   and 04-failing-test (marginal). The tuning band hunt continues — but now on a
+   trustworthy average.
+4. **Cost is reported two ways:** per-run mean (compare models) and actual spend
+   across all runs (the real bill); `cost_score` is recomputed from the mean cost,
+   not averaged, since it's non-linear (`k/(k+cost)`).
+
+---
+
 ## Open questions / things to watch as scenarios get harder
 
 - Does reasoning start buying *resolution* (not just spend) on medium/hard, where
