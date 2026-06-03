@@ -2,8 +2,6 @@
 
 NOTE: this still calls the deprecated float splitter in app.legacy.pricing.
 See logs/billing.log for the support tickets about splits that don't add up.
-Per CONVENTIONS.md this should move onto app.core.money.Money, whose `allocate`
-reconciles to the cent and splits fairly.
 """
 
 from app.legacy.pricing import even_split
