@@ -1,0 +1,5 @@
+[
+  {"id": "INV-1001", "total_cents": 10000, "payers": 4},
+  {"id": "INV-1002", "total_cents": 10000, "payers": 3},
+  {"id": "INV-1003", "total_cents": 10400, "payers": 3}
+]

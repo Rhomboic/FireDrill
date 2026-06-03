@@ -106,7 +106,7 @@ gym/            FireDrillEnv (environment.py), the policy-agnostic protocol, and
 agent/          one LLM policy that drives the env (Claude + OpenAI), swappable
 eval/           4-dimension scoring + LLM-as-judge
 runner/         container entrypoint: reset → run policy → verify → score → upload results
-scenarios/      the 10 broken projects (filesystem/ + metadata.json each)
+scenarios/      the broken projects (filesystem/ + metadata.json each)
 orchestrator/   launch the scenario × model job matrix
 terraform/      ECS-on-EC2 + autoscaling, ECR, S3, secrets, dashboard infra
 dashboard/      static results dashboard (firedrill.adamissah.com)
