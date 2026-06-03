@@ -1,5 +1,5 @@
 import React from "react";
-import { modelLabel, scoreClass, money } from "../meta.js";
+import { modelLabel, scoreColor, money } from "../meta.js";
 
 export default function Matrix({ models, scenarios, cell, onSelect }) {
   return (
@@ -34,10 +34,12 @@ export default function Matrix({ models, scenarios, cell, onSelect }) {
                     );
                   }
                   const c = job.scores.composite;
+                  const col = scoreColor(c);
                   return (
                     <td
                       key={m}
-                      className={`matrix-cell ${scoreClass(c)}`}
+                      className="matrix-cell"
+                      style={{ background: col.bg, color: col.fg }}
                       onClick={() => onSelect(job)}
                       title="Click for details"
                     >

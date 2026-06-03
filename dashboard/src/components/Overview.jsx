@@ -50,7 +50,7 @@ export default function Overview({ jobs, models, scenarios, cell, onSelect, onPi
 
       <div className="card section">
         <div className="card-title">Scenario × model</div>
-        <div className="card-desc">Each cell is the composite score and dollar cost. Green ≥ 0.85, amber ≥ 0.5, red below.</div>
+        <div className="card-desc">Each cell is the composite score and dollar cost. Colour runs continuously: green at 1.0, red at ≤ 0.5, a red→green gradient between.</div>
         <div className="click-hint">
           <span className="click-hint-icon">↗</span>
           <span><strong>Click any cell</strong> for the full transcript, fix diff, judge verdict and objective verification.</span>

@@ -1,7 +1,7 @@
 import React from "react";
 import StatGrid from "./StatGrid.jsx";
 import Bars from "./Bars.jsx";
-import { modelLabel, vendorBadge, MODEL_META, money, scoreClass } from "../meta.js";
+import { modelLabel, vendorBadge, MODEL_META, money, scoreColor } from "../meta.js";
 import { modelStats, modelBlurb } from "../stats.js";
 
 export default function ModelTab({ model, jobs, allModels, onSelect }) {
@@ -83,7 +83,10 @@ export default function ModelTab({ model, jobs, allModels, onSelect }) {
                         {j.stack} · {j.difficulty}
                       </span>
                     </td>
-                    <td className={`num ${scoreClass(j.scores.composite)}`}>
+                    <td className="num" style={{
+                      background: scoreColor(j.scores.composite).bg,
+                      color: scoreColor(j.scores.composite).fg,
+                    }}>
                       {j.scores.composite.toFixed(2)}
                     </td>
                     <td className="num">{j.scores.resolution ? "✓" : "✗"}</td>

@@ -1,5 +1,5 @@
 import React from "react";
-import { modelLabel, money, scoreClass } from "../meta.js";
+import { modelLabel, money, scoreColor } from "../meta.js";
 
 function Diff({ text }) {
   return (
@@ -69,8 +69,10 @@ export default function Drawer({ job, onClose }) {
             <p className="muted" style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               composite per run:
               {job.per_run.map((r, i) => (
-                <span key={i} className={scoreClass(r.composite)}
-                      style={{ padding: "1px 7px", borderRadius: 4, fontWeight: 600 }}>
+                <span key={i} style={{
+                  padding: "1px 7px", borderRadius: 4, fontWeight: 600,
+                  background: scoreColor(r.composite).bg, color: scoreColor(r.composite).fg,
+                }}>
                   {r.composite.toFixed(2)}
                 </span>
               ))}
