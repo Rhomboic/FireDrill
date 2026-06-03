@@ -126,6 +126,75 @@ To produce a real quality spread, future scenarios must discriminate on one of:
 
 ---
 
+## Finding 3 — Regression traps work: the gym goes from saturated to discriminating
+
+**The intervention.** Findings 1 & 2 showed the easy/medium tier was quality-
+saturated — every model resolved everything, so capability only showed up in the
+*path*, not the outcome. So a **held-out regression trap** was added to all ten
+scenarios (the lever from Finding 2's pivot): a second, production-shaped bug
+where the obvious symptomatic fix passes the visible `success_condition` but
+fails a **held-out `regression_check`**. A hasty model takes the bait; a careful
+reasoner fixes the root cause.
+
+**Result — full matrix, 10 × 4, reasoning flagships at high effort:**
+
+| model | composite | resolution | blast | diagnosis | reg pass | $/job | $ total |
+|---|---|---|---|---|---|---|---|
+| claude-opus-4-8 | 0.98 | 100% | 0.90 | 0.98 | 9/10 | $0.0960 | $0.9601 |
+| gpt-5.5 | 0.97 | 100% | 0.90 | 0.96 | 9/10 | $0.1080 | $1.0797 |
+| claude-haiku-4-5 | 0.90 | 100% | 0.60 | 0.88 | 6/10 | $0.0374 | $0.3735 |
+| gpt-4.1-mini | 0.88 | 100% | 0.60 | 0.78 | 6/10 | $0.0055 | $0.0550 |
+
+**Composite spread across models: 0.024 → 0.100 (4×).** A clean two-tier split:
+flagships ~0.97, small baselines ~0.89.
+
+**Mechanism (precise).** Resolution stayed **100% for all four** — the trap does
+not change whether the visible success condition passes. Discrimination comes
+entirely from the held-out regression, and it flows through **blast radius**:
+`_blast_score` returns a hard **0** when `regression_passed is False`. So taking
+the symptomatic fix costs the full `W_BLAST` (0.2). Flagships pass 9/10
+regressions → blast 0.90; small models pass 6/10 → blast 0.60. That 0.30 blast
+gap × 0.2 weight, plus a diagnosis gap, *is* the composite gap. **Pass/fail
+resolution alone is blind to all of it** — the multi-dimensional reward is what
+makes the capability gap legible.
+
+**Which traps fired** (`*` = model failed the held-out regression):
+
+| scenario | opus | gpt-5.5 | haiku | 4.1-mini | spread |
+|---|---|---|---|---|---|
+| 08-malformed-config | 1.00 | 1.00 | 0.72* | 0.72* | 0.28 |
+| 01-payments-service-down | 1.00 | 1.00 | 0.76* | 0.76* | 0.24 |
+| 03-off-by-one | 1.00 | 0.96 | 0.76* | 0.76* | 0.24 |
+| 02-silent-data-bug | 0.76* | 0.76* | 0.76* | 0.76* | 0.00 |
+| 04-failing-test | 1.00 | 1.00 | 0.96 | 0.92 | 0.08 |
+| 05-dead-submit-button | 1.00 | 1.00 | 1.00 | 0.92 | 0.08 |
+| 06-layout-regression | 1.00 | 1.00 | 1.00 | 0.92 | 0.08 |
+| 07-spinner-forever | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 |
+| 09-bad-dockerfile | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 |
+| 10-wrong-join | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 |
+
+**6/10 discriminate (up from 2/10), and three traps (08, 01, 03) fire on the
+small models only — the ideal flagship-vs-baseline split.**
+
+**Takeaways:**
+1. **Traps are the discrimination lever, and they work *through blast radius*,
+   not resolution.** The held-out regression is the mechanism; the multi-dim
+   reward is what surfaces it.
+2. **Cost finally tracks capability.** Flagships cost ~17× the cheapest model
+   ($0.096–0.108 vs $0.0055/job) *and* now score measurably higher — the
+   premium is earned, where in Findings 1 & 2 it bought nothing.
+3. **Trap calibration is the real craft.** A trap only discriminates in the band
+   where flagships catch it and small models don't:
+   - **02 is too hard** — float-vs-Decimal fools all four (everyone 0.76).
+   - **07 / 09 / 10 are too easy** — response-shape, SIGTERM, JOIN-fan-out edges
+     were within every model's reach (all 1.00).
+   - **04 / 05 / 06** discriminate only the *weakest* model, via diagnosis/blast,
+     not the trap firing.
+   Next iteration: soften 02, sharpen 07/09/10. The band is only findable
+   empirically — run the matrix, read this table, retune. That loop is the work.
+
+---
+
 ## Open questions / things to watch as scenarios get harder
 
 - Does reasoning start buying *resolution* (not just spend) on medium/hard, where
